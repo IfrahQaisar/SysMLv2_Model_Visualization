@@ -1,0 +1,9 @@
+[
+  {
+    "title": "Model Analysis View",
+    "entryPointType": ["component","requirement","action"],
+    "concerns": ["structural","behavior","interface","requirement"],
+    "maxDepth": 5, 
+	"analysisIntent": ["propagation"], //dependency
+  }
+]
