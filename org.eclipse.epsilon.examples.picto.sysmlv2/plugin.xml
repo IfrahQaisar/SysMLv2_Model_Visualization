@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+   <!-- Picto source for SysML v2 -->
+   <extension
+         point="org.eclipse.epsilon.picto.pictoSource">
+      <pictoSource
+            class="org.eclipse.epsilon.examples.picto.sysmlv2.Sysmlv2PictoSource">
+      </pictoSource>
+   </extension>
+
+   <!-- ViewBuilder UI: dropdown to select view -->
+   <extension
+         point="org.eclipse.ui.views">
+      <view
+            id="org.eclipse.epsilon.examples.picto.sysmlv2.viewSelector"
+            name="ViewBuilder – View Selector"
+            class="org.eclipse.epsilon.examples.picto.sysmlv2.ui.ViewSelectorView"
+            category="org.eclipse.epsilon.examples.picto.sysmlv2">
+      </view>
+   </extension>
+   
+   
+
+
+  <extension point="org.eclipse.ui.commands">
+  <command
+    id="org.eclipse.epsilon.examples.picto.sysmlv2.context.configure"
+    name="Configure Context View (GUI)" />
+</extension>
+
+<extension point="org.eclipse.ui.handlers">
+  <handler
+    commandId="org.eclipse.epsilon.examples.picto.sysmlv2.context.configure"
+    class="org.eclipse.epsilon.examples.picto.sysmlv2.context.gui.ConfigureContextHandler" />
+</extension>
+
+<extension point="org.eclipse.ui.menus">
+  <!-- Put it under Window menu for the demo -->
+  <menuContribution locationURI="menu:window?after=additions">
+    <command
+      commandId="org.eclipse.epsilon.examples.picto.sysmlv2.context.configure"
+      label="Configure Context View (GUI)"
+      style="push" />
+  </menuContribution>
+
+  <!-- Optional: also add to right-click menu when selecting a .sysml file -->
+  <menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">
+    <command
+      commandId="org.eclipse.epsilon.examples.picto.sysmlv2.context.configure"
+      label="Configure Context View (GUI)"
+      style="push" />
+  </menuContribution>
+</extension>
+   
+
+</plugin>

@@ -1,0 +1,445 @@
+[%
+var title = "Model Exploration View";
+var impactDirection = "downstream";
+var analysisIntent = "propagation";
+var maxDepth = 5;
+var entryPointTypesText = "component, action, requirement";
+var concernsSeq = Sequence{"structural", "behavior", "requirement", "interface"};
+var entryPointTypesSeq = Sequence{"component", "action", "requirement"};
+var concernsBlock = "<ul><li>structural</li><li>behavior</li><li>requirement</li><li>interface</li></ul>";
+var concernOptionsHtml = "<option value='all'>All</option>";
+for (cc in concernsSeq) {
+  var cLabel = cc.toString();
+  var pretty = cLabel.substring(0,1).toUpperCase() + cLabel.substring(1);
+  concernOptionsHtml = concernOptionsHtml + "<option value='" + cLabel + "'>" + pretty + "</option>";
+}
+var depthOptionsHtml = "";
+var dd = 1;
+while (dd <= maxDepth) {
+  depthOptionsHtml = depthOptionsHtml + "<option value='" + dd.toString() + "'>" + dd.toString() + "</option>";
+  dd = dd + 1;
+}
+var startOptionsHtml = "<option value=''>-- Select start element --</option>";
+var seenStartOptions = Sequence{};
+for (e in EObject.all) {
+  var label = "";
+  if (e.hasProperty("declaredName") and not e.declaredName.isUndefined()) {
+    label = e.declaredName.toString().trim();
+  }
+  else if (e.hasProperty("name") and not e.name.isUndefined()) {
+    label = e.name.toString().trim();
+  }
+  label = label.replace("\n", " ").replace("\r", " ").trim();  var t = e.eClass().name.toLowerCase();
+  var entryKind = "other";
+  if (t.contains("action") or t.contains("behavior") or t.contains("state") or t.contains("eventoccurrence")) entryKind = "action";
+  else if (t.contains("requirement")) entryKind = "requirement";
+  else if (t.contains("port") or t.contains("interface") or t.contains("interaction") or t.contains("connection") or t.contains("bindingconnector") or t.contains("flowusage") or t.contains("flowconnection")) entryKind = "interface";
+  else if (t.contains("partusage") or t.contains("partdefinition")) entryKind = "component";
+  if (label.trim().size() > 0 and entryKind <> "other" and entryPointTypesSeq.includes(entryKind)) {
+    if (not label.startsWith("~")) {
+      var safeLabel = label.replace("&", "&amp;");
+      safeLabel = safeLabel.replace("<", "&lt;");
+      safeLabel = safeLabel.replace(">", "&gt;");
+      var optionKey = entryKind + "::" + safeLabel;
+      if (not seenStartOptions.includes(optionKey)) {
+        seenStartOptions.add(optionKey);
+        startOptionsHtml = startOptionsHtml + "<option value='" + safeLabel + "'>[" + entryKind + "] " + safeLabel + "</option>";
+      }
+    }
+  }
+}
+var nodeStoreHtml = "";
+var nodeStore = nodeStoreHtml;
+var globalNodeStoreHtml = "";
+var globalEdgeStoreHtml = "";
+var seenGlobalNodes = Sequence{};
+var seenGlobalEdges = Sequence{};
+for (e in EObject.all) {
+  var label = "";
+  if (e.hasProperty("declaredName") and not e.declaredName.isUndefined() and e.declaredName.toString().trim().size() > 0) {
+    label = e.declaredName.toString().trim();
+  }
+  else if (e.hasProperty("name") and not e.name.isUndefined() and e.name.toString().trim().size() > 0) {
+    label = e.name.toString().trim();
+  }
+  label = label.replace("\n", " ").replace("\r", " ").trim();
+  var kind = "other";
+  var t = e.eClass().name.toLowerCase();
+  if (t.contains("state") or t.contains("action") or t.contains("behavior") or t.contains("eventoccurrence")) kind = "behavior";
+  else if (t.contains("requirement") or t.contains("satisfy") or t.contains("derive") or t.contains("refine")) kind = "requirement";
+  else if (t.contains("port") or t.contains("interface") or t.contains("interaction") or t.contains("connection") or t.contains("bindingconnector") or t.contains("flowusage")) kind = "interface";
+  else if (t.contains("partusage") or t.contains("partdefinition") or t.contains("attributeusage") or t.contains("attributedefinition") or t.contains("enumerationusage") or t.contains("enumerationdefinition") or t.contains("itemdefinition") or t.contains("occurrenceusage")) kind = "structural";
+  if (label.size() > 0 and label <> "null" and not label.startsWith("~") and label <> "Definitions" and kind <> "other" and concernsSeq.includes(kind)) {
+    var safeLabel = label.replace("&", "&amp;");
+    safeLabel = safeLabel.replace("<", "&lt;");
+    safeLabel = safeLabel.replace(">", "&gt;");
+    var nodeKey = kind + "::" + safeLabel;
+    if (not seenGlobalNodes.includes(nodeKey)) {
+      seenGlobalNodes.add(nodeKey);
+      globalNodeStoreHtml = globalNodeStoreHtml + "<div class='impact-global-node' data-key='" + nodeKey + "' data-label='" + safeLabel + "' data-kind='" + kind + "'></div>";
+    }
+  }
+}
+for (src in EObject.all) {
+  var srcLabel = "";
+  if (src.hasProperty("declaredName") and not src.declaredName.isUndefined() and src.declaredName.toString().trim().size() > 0) {
+    srcLabel = src.declaredName.toString().trim();
+  }
+  else if (src.hasProperty("name") and not src.name.isUndefined() and src.name.toString().trim().size() > 0) {
+    srcLabel = src.name.toString().trim();
+  }
+  srcLabel = srcLabel.replace("\n", " ").replace("\r", " ").trim();
+  var srcKind = "other";
+  var st = src.eClass().name.toLowerCase();
+  if (st.contains("state") or st.contains("action") or st.contains("behavior") or st.contains("eventoccurrence")) srcKind = "behavior";
+  else if (st.contains("requirement") or st.contains("satisfy") or st.contains("derive") or st.contains("refine")) srcKind = "requirement";
+  else if (st.contains("port") or st.contains("interface") or st.contains("interaction") or st.contains("connection") or st.contains("bindingconnector") or st.contains("flowusage")) srcKind = "interface";
+  else if (st.contains("partusage") or st.contains("partdefinition") or st.contains("attributeusage") or st.contains("attributedefinition") or st.contains("enumerationusage") or st.contains("enumerationdefinition") or st.contains("itemdefinition") or st.contains("occurrenceusage")) srcKind = "structural";
+  if (srcLabel.size() > 0 and srcKind <> "other" and concernsSeq.includes(srcKind)) {
+    var safeSrcLabel = srcLabel.replace("&", "&amp;");
+    safeSrcLabel = safeSrcLabel.replace("<", "&lt;");
+    safeSrcLabel = safeSrcLabel.replace(">", "&gt;");
+    var srcKey = srcKind + "::" + safeSrcLabel;
+    for (p in src.eClass().eAllReferences) {
+      var refName = p.name.toLowerCase();
+      if (
+        refName = "owner" or
+        refName = "owningnamespace" or
+        refName = "namespace" or
+        refName = "owningtype" or
+        refName = "owningfeature" or
+        refName = "owningmembership" or
+        refName = "owningrelationship" or
+        refName = "ownedelement" or
+        refName = "ownedrelationship" or
+        refName = "ownedmember" or
+        refName = "ownedmemberelement" or
+        refName = "membership" or
+        refName = "ownedmembership" or
+        refName = "member" or
+        refName = "element" or
+        refName = "source" or
+        refName = "target" or
+        refName = "relatedelement" or
+        refName = "documentation" or
+        refName = "comment" or
+        refName = "annotatingelement" or
+        refName = "annotatedelement" or
+        refName = "ownedannotation" or
+        refName = "aliasid" or
+        refName = "ownedtextualrepresentation"
+      ) {
+      }
+      else {
+        var v = src.eGet(p);
+        if (v.isUndefined()) {
+        }
+        else if (v.isKindOf(Collection)) {
+          for (x in v) {
+            if (not x.isUndefined()) {
+              var tgtLabel = "";
+              if (x.hasProperty("declaredName") and not x.declaredName.isUndefined() and x.declaredName.toString().trim().size() > 0) tgtLabel = x.declaredName.toString().trim();
+              else if (x.hasProperty("name") and not x.name.isUndefined() and x.name.toString().trim().size() > 0) tgtLabel = x.name.toString().trim();
+              tgtLabel = tgtLabel.replace("\n", " ").replace("\r", " ").trim();
+              var tgtKind = "other";
+              var tt = x.eClass().name.toLowerCase();
+              if (tt.contains("state") or tt.contains("action") or tt.contains("behavior") or tt.contains("eventoccurrence")) tgtKind = "behavior";
+              else if (tt.contains("requirement") or tt.contains("satisfy") or tt.contains("derive") or tt.contains("refine")) tgtKind = "requirement";
+              else if (tt.contains("port") or tt.contains("interface") or tt.contains("interaction") or tt.contains("connection") or tt.contains("bindingconnector") or tt.contains("flowusage")) tgtKind = "interface";
+              else if (tt.contains("partusage") or tt.contains("partdefinition") or tt.contains("attributeusage") or tt.contains("attributedefinition") or tt.contains("enumerationusage") or tt.contains("enumerationdefinition") or tt.contains("itemdefinition") or tt.contains("occurrenceusage")) tgtKind = "structural";
+              if (tgtLabel.size() > 0 and tgtKind <> "other" and concernsSeq.includes(tgtKind)) {
+                var safeTgtLabel = tgtLabel.replace("&", "&amp;");
+                safeTgtLabel = safeTgtLabel.replace("<", "&lt;");
+                safeTgtLabel = safeTgtLabel.replace(">", "&gt;");
+                var tgtKey = tgtKind + "::" + safeTgtLabel;
+                var edgeKey = srcKey + "-->" + tgtKey;
+                if (not seenGlobalEdges.includes(edgeKey)) {
+                  seenGlobalEdges.add(edgeKey);
+                  globalEdgeStoreHtml = globalEdgeStoreHtml + "<div class='impact-global-edge' data-source='" + srcKey + "' data-target='" + tgtKey + "'></div>";
+                }
+              }
+            }
+          }
+        }
+        else {
+          if (not v.isUndefined()) {
+            var tgtLabel = "";
+            if (v.hasProperty("declaredName") and not v.declaredName.isUndefined() and v.declaredName.toString().trim().size() > 0) tgtLabel = v.declaredName.toString().trim();
+            else if (v.hasProperty("name") and not v.name.isUndefined() and v.name.toString().trim().size() > 0) tgtLabel = v.name.toString().trim();
+            tgtLabel = tgtLabel.replace("\n", " ").replace("\r", " ").trim();
+            var tgtKind = "other";
+            var tt = v.eClass().name.toLowerCase();
+            if (tt.contains("state") or tt.contains("action") or tt.contains("behavior") or tt.contains("eventoccurrence")) tgtKind = "behavior";
+            else if (tt.contains("requirement") or tt.contains("satisfy") or tt.contains("derive") or tt.contains("refine")) tgtKind = "requirement";
+            else if (tt.contains("port") or tt.contains("interface") or tt.contains("interaction") or tt.contains("connection") or tt.contains("bindingconnector") or tt.contains("flowusage")) tgtKind = "interface";
+            else if (tt.contains("partusage") or tt.contains("partdefinition") or tt.contains("attributeusage") or tt.contains("attributedefinition") or tt.contains("enumerationusage") or tt.contains("enumerationdefinition") or tt.contains("itemdefinition") or tt.contains("occurrenceusage")) tgtKind = "structural";
+            if (tgtLabel.size() > 0 and tgtKind <> "other" and concernsSeq.includes(tgtKind)) {
+              var safeTgtLabel = tgtLabel.replace("&", "&amp;");
+              safeTgtLabel = safeTgtLabel.replace("<", "&lt;");
+              safeTgtLabel = safeTgtLabel.replace(">", "&gt;");
+              var tgtKey = tgtKind + "::" + safeTgtLabel;
+              var edgeKey = srcKey + "-->" + tgtKey;
+              if (not seenGlobalEdges.includes(edgeKey)) {
+                seenGlobalEdges.add(edgeKey);
+                globalEdgeStoreHtml = globalEdgeStoreHtml + "<div class='impact-global-edge' data-source='" + srcKey + "' data-target='" + tgtKey + "'></div>";
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+var globalNodeStore = globalNodeStoreHtml;
+var globalEdgeStore = globalEdgeStoreHtml;
+%]
+<html>
+<body>
+<div class='analysis-root'>
+  <h2>[%= title %]</h2>
+  <details style='margin:8px 0 12px 0; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fafafa; font-size:12px;'>
+    <summary style='cursor:pointer; font-weight:600;'>View Configuration</summary>
+    <div style='display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; color:#444;'>
+      <span><b>Entry:</b> [%= entryPointTypesText %]</span>
+      <span><b>Intent:</b> [%= analysisIntent %]</span>
+      <span><b>Max depth:</b> [%= maxDepth %]</span>
+      <span><b>Concerns:</b> [%= concernsSeq.concat(', ') %]</span>
+    </div>
+  </details>  <div class='toolbar' style='margin:12px 0; display:flex; flex-wrap:wrap; gap:12px; align-items:center;'>
+    <label><b>Start element:</b></label>
+    <select id='startElement'>[%= startOptionsHtml %]</select>
+    <label style='margin-left:12px;'><b>Concern mode:</b></label>
+    <select id='concernSelect'>[%= concernOptionsHtml %]</select>
+    <label style='margin-left:12px;'><b>Depth:</b></label>
+    <select id='depthSelect'>[%= depthOptionsHtml %]</select>
+    <label style='margin-left:12px;'><input type='checkbox' id='orphanToggle' checked='checked'/> Show orphan nodes</label>
+  </div>
+  <hr/>
+
+  <div id='impactNodeStore' style='display:none'>[%= nodeStore %]</div>
+  <div id='impactGlobalNodeStore' style='display:none'>[%= globalNodeStore %]</div>
+  <div id='impactGlobalEdgeStore' style='display:none'>[%= globalEdgeStore %]</div>
+  <style>
+    #impactBoardWrapper { position: relative; overflow-x: auto; padding: 12px 0; }
+    #impactBoard { position: relative; display: flex; gap: 72px; align-items: flex-start; min-height: 520px; padding: 16px 32px 32px 32px; }
+    .impact-depth-col { min-width: 280px; position: relative; z-index: 2; display:flex; flex-direction:column; }
+    .impact-depth-col[data-depth-col='0'] { min-height: 460px; }
+    .impact-depth-col[data-depth-col='0'] .impact-depth-title { margin-bottom:16px; }
+    .impact-depth-col[data-depth-col='0'] .impact-card { margin-top: 180px; }
+    .impact-depth-title { font-weight: 700; font-size: 16px; margin-bottom: 16px; color: #444; }
+    .impact-card {
+      background: #f7f9fc;
+      border: 2px solid #5f6b7a;
+      border-radius: 18px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      min-height: 56px;
+      box-sizing: border-box;
+      position: relative;
+    }
+    .impact-card-label { font-size: 14px; font-weight: 500; color: #222; line-height: 1.25; }
+    .impact-card-kind { font-size: 12px; color: #555; margin-top: 4px; text-transform: lowercase; }
+    .impact-card.structural { background: #f2f2f2; }
+    .impact-card.requirement { background: #f7ead7; }
+    .impact-card.behavior { background: #e7f0f8; }
+    .impact-card.interface { background: #e7f3ee; }
+    .impact-card.root { background: #f2f2f2; }
+    #impactEdges { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; overflow: visible; }
+  </style>
+
+  <div id='impactBoardWrapper'>
+    <svg id='impactEdges'></svg>
+    <div id='impactBoard'></div>
+  </div>
+  <script>
+    var analysisIntentJs = '[%= analysisIntent %]';
+    function readImpactNodes(maxVisibleDepth) {
+      var startSel = document.getElementById('startElement');
+      var selectedLabel = startSel ? ((startSel.value || '').replace(/\s+/g, ' ').trim()) : '';
+      var concernSel = document.getElementById('concernSelect');
+      var selectedConcern = concernSel ? ((concernSel.value || 'all').replace(/\s+/g, ' ').trim()) : 'all';
+      var effectiveDirection = (analysisIntentJs === 'dependency') ? 'upstream' : 'downstream';
+      if (!selectedLabel) return [];
+      var rawNodes = document.querySelectorAll('#impactGlobalNodeStore .impact-global-node');
+      var rawEdges = document.querySelectorAll('#impactGlobalEdgeStore .impact-global-edge');
+      var nodeMap = {};
+      var adjacency = {};
+      var reverseAdjacency = {};
+      for (var i = 0; i < rawNodes.length; i++) {
+        var n = rawNodes[i];
+        var key = n.getAttribute('data-key') || '';
+        var label = (n.getAttribute('data-label') || '').replace(/\s+/g, ' ').trim();
+        var kind = (n.getAttribute('data-kind') || '').replace(/\s+/g, ' ').trim();
+        if (key && label) {
+          if (selectedConcern === 'all' || kind === selectedConcern) {
+            nodeMap[key] = { key: key, label: label, kind: kind || 'structural' };
+          }
+        }
+      }
+      var selectedKey = '';
+      for (var i2 = 0; i2 < rawNodes.length; i2++) {
+        var rn = rawNodes[i2];
+        var rkey = rn.getAttribute('data-key') || '';
+        var rlabel = (rn.getAttribute('data-label') || '').replace(/\s+/g, ' ').trim();
+        var rkind = (rn.getAttribute('data-kind') || '').replace(/\s+/g, ' ').trim();
+        if (rlabel === selectedLabel) {
+          selectedKey = rkey;
+          if (!nodeMap[rkey]) nodeMap[rkey] = { key: rkey, label: rlabel, kind: rkind || 'structural' };
+          break;
+        }
+      }
+      if (!selectedKey) return [];
+      for (var j = 0; j < rawEdges.length; j++) {
+        var e = rawEdges[j];
+        var src = e.getAttribute('data-source') || '';
+        var tgt = e.getAttribute('data-target') || '';
+        if (src && tgt) {
+          var srcDef = nodeMap[src];
+          var tgtDef = nodeMap[tgt];
+          var srcOk = !!srcDef;
+          var tgtOk = !!tgtDef;
+          var rootPassForward = (src === selectedKey);
+          var rootPassReverse = (tgt === selectedKey);
+          if ((srcOk && tgtOk) || (rootPassForward && tgtOk)) {
+            if (!adjacency[src]) adjacency[src] = [];
+            adjacency[src].push(tgt);
+          }
+          if ((srcOk && tgtOk) || (rootPassReverse && srcOk)) {
+            if (!reverseAdjacency[tgt]) reverseAdjacency[tgt] = [];
+            reverseAdjacency[tgt].push(src);
+          }
+        }
+      }
+      var result = [];
+      var visited = {};
+      var queue = [{ key: selectedKey, parent: '', depth: 0 }];
+      while (queue.length > 0) {
+        var current = queue.shift();
+        var currentKey = current.key;
+        if (visited[currentKey]) continue;
+        visited[currentKey] = true;
+        var def = nodeMap[currentKey];
+        if (!def) continue;
+        var nodeKind = current.depth === 0 ? 'root' : def.kind;
+        result.push({ id: currentKey, parent: current.parent, depth: current.depth, label: def.label, kind: nodeKind });
+        if (current.depth < maxVisibleDepth) {
+          var nexts = (effectiveDirection === 'upstream') ? (reverseAdjacency[currentKey] || []) : (adjacency[currentKey] || []);
+          for (var k = 0; k < nexts.length; k++) {
+            var nextKey = nexts[k];
+            if (!visited[nextKey]) {
+              queue.push({ key: nextKey, parent: currentKey, depth: current.depth + 1 });
+            }
+          }
+        }
+      }
+      return result;
+    }
+    function filterOrphanNodes(nodes) {
+      var orphanToggle = document.getElementById('orphanToggle');
+      var showOrphans = orphanToggle ? orphanToggle.checked : true;
+      if (showOrphans) return nodes;
+      var parentMap = {};
+      var childMap = {};
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        if (n.parent) {
+          parentMap[n.id] = true;
+          childMap[n.parent] = true;
+        }
+      }
+      var filtered = [];
+      for (var j = 0; j < nodes.length; j++) {
+        var node = nodes[j];
+        var isRoot = node.depth === 0;
+        var hasParent = !!parentMap[node.id];
+        var hasChild = !!childMap[node.id];
+        if (isRoot || hasParent || hasChild) {
+          filtered.push(node);
+        }
+      }
+      return filtered;
+    }
+    function renderImpactBoard() {
+      var depthSel = document.getElementById('depthSelect');
+      var maxVisibleDepth = depthSel ? parseInt(depthSel.value, 10) : 5;
+      var nodes = readImpactNodes(maxVisibleDepth);
+      if (!nodes || nodes.length === 0) {
+        document.getElementById('impactBoard').innerHTML = '';
+        document.getElementById('impactEdges').innerHTML = '';
+        return;
+      }
+      nodes = filterOrphanNodes(nodes);
+      var board = document.getElementById('impactBoard');
+      var byDepth = {};
+      var maxDepthFound = 0;
+      for (var i = 0; i < nodes.length; i++) {
+        var d = nodes[i].depth;
+        if (!byDepth[d]) byDepth[d] = [];
+        byDepth[d].push(nodes[i]);
+        if (d > maxDepthFound) maxDepthFound = d;
+      }
+      var html = '';
+      for (var d = 0; d <= maxDepthFound; d++) {
+        html += '<div class="impact-depth-col" data-depth-col="' + d + '">';
+        html += '<div class="impact-depth-title">Depth ' + d + '</div>'; 
+        var levelNodes = byDepth[d] || [];
+        for (var j = 0; j < levelNodes.length; j++) {
+          var node = levelNodes[j];
+          html += '<div class="impact-card ' + node.kind + '" data-node-id="' + node.id + '" data-parent-id="' + node.parent + '">';
+          html += '<div class="impact-card-label">' + node.label + '</div>'; 
+          html += '<div class="impact-card-kind">' + node.kind + '</div>'; 
+          html += '</div>'; 
+        }
+        html += '</div>'; 
+      }
+      board.innerHTML = html;
+      drawImpactEdges();
+    }
+    function drawImpactEdges() {
+      var wrapper = document.getElementById('impactBoardWrapper');
+      var board = document.getElementById('impactBoard');
+      var svg = document.getElementById('impactEdges');
+      var cards = document.querySelectorAll('#impactBoard .impact-card');
+      var wrapperRect = wrapper.getBoundingClientRect();
+      var boardRect = board.getBoundingClientRect();
+      svg.setAttribute('width', Math.max(board.scrollWidth, boardRect.width));
+      svg.setAttribute('height', Math.max(board.scrollHeight, boardRect.height));
+      svg.innerHTML = '';
+      for (var i = 0; i < cards.length; i++) {
+        var child = cards[i];
+        var parentId = child.getAttribute('data-parent-id');
+        if (!parentId) continue;
+        var parent = document.querySelector('#impactBoard .impact-card[data-node-id="' + parentId + '"]');
+        if (!parent) continue;
+        var pr = parent.getBoundingClientRect();
+        var cr = child.getBoundingClientRect();
+        var x1 = pr.right - wrapperRect.left;
+        var y1 = pr.top + pr.height / 2 - wrapperRect.top;
+        var x2 = cr.left - wrapperRect.left;
+        var y2 = cr.top + cr.height / 2 - wrapperRect.top;
+        var c1x = x1 + 24;
+        var c2x = x2 - 24;
+        var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' C ' + c1x + ' ' + y1 + ', ' + c2x + ' ' + y2 + ', ' + x2 + ' ' + y2);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', '#8a8f98');
+        path.setAttribute('stroke-width', '3');
+        path.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(path);
+      }
+    }
+    var depthSel = document.getElementById('depthSelect');
+    var startSel = document.getElementById('startElement');
+    var concernSel = document.getElementById('concernSelect');
+    var orphanToggle = document.getElementById('orphanToggle');
+    if (depthSel) depthSel.addEventListener('change', renderImpactBoard);
+    if (startSel) startSel.addEventListener('change', renderImpactBoard);
+    if (concernSel) concernSel.addEventListener('change', renderImpactBoard);
+    if (orphanToggle) orphanToggle.addEventListener('change', renderImpactBoard);
+
+    window.addEventListener('resize', drawImpactEdges);
+    renderImpactBoard();
+  </script>
+</div>
+</body>
+</html>

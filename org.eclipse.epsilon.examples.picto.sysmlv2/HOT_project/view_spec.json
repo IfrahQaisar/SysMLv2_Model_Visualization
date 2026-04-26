@@ -1,0 +1,70 @@
+[
+  {
+    "id": "impact",
+    "title": "Impact Analysis",
+    "layout": "graph",
+    "controls": [
+      {
+        "id": "comp",
+        "type": "select",
+        "label": "Start component",
+        "source": "impactComponents"
+      },
+      {
+        "id": "mode",
+        "type": "select",
+        "label": "Concern mode",
+        "options": [
+          { "value": "combined", "label": "Combined" },
+          { "value": "structural", "label": "Structural" },
+          { "value": "requirement", "label": "Requirement" },
+          { "value": "behavior", "label": "Behavior" },
+          { "value": "interface", "label": "Interface" }
+        ]
+      },
+      {
+        "id": "depth",
+        "type": "select",
+        "label": "Depth",
+        "options": [
+          { "value": "1", "label": "1" },
+          { "value": "2", "label": "2" },
+          { "value": "3", "label": "3" },
+          { "value": "4", "label": "4" },
+          { "value": "5", "label": "5" }
+        ],
+        "default": "1"
+      }
+    ]
+  },
+  {
+    "id": "consistency",
+    "title": "Consistency Exploration",
+    "layout": "tree",
+    "controls": [
+      {
+        "id": "searchBox",
+        "type": "text",
+        "placeholder": "Search issue name..."
+      },
+      {
+        "id": "cbReq",
+        "type": "checkbox",
+        "label": "Unsatisfied requirements",
+        "default": true
+      },
+      {
+        "id": "cbBeh",
+        "type": "checkbox",
+        "label": "Components without behavior",
+        "default": true
+      },
+      {
+        "id": "cbItf",
+        "type": "checkbox",
+        "label": "Interfaces without interaction",
+        "default": true
+      }
+    ]
+  }
+]

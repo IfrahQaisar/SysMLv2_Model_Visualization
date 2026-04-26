@@ -1,0 +1,14 @@
+# Eclipse / Java build
+.metadata/
+bin/
+target/
+*.class
+
+# OS files
+.DS_Store
+
+# Eclipse runtime
+runtime-EclipseApplication/
+
+# Logs
+*.log

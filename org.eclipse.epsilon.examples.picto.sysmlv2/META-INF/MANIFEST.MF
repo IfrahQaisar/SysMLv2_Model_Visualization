@@ -1,0 +1,17 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Picto SysML V2 Example
+Bundle-SymbolicName: org.eclipse.epsilon.examples.picto.sysmlv2;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Import-Package: org.eclipse.emf.ecore
+Export-Package: org.eclipse.epsilon.examples.picto.sysmlv2
+Require-Bundle: org.eclipse.epsilon.picto,
+ org.eclipse.emf.ecore,
+ org.eclipse.epsilon.egl.engine,
+ org.eclipse.xtext.ui,
+ org.eclipse.ui.ide,
+ org.eclipse.core.runtime,
+ org.eclipse.ui,
+ org.eclipse.swt
+Automatic-Module-Name: org.eclipse.epsilon.examples.picto.sysmlv2
+Bundle-RequiredExecutionEnvironment: JavaSE-21

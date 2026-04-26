@@ -1,0 +1,427 @@
+@cached
+operation Any getLabel() {
+	if (self.isStartState() or self.isEndState()) return "["+"*"+"]";
+	else return "State" + self.~id;
+}
+
+@cached
+operation Any isStartState() {
+	return self.name = "entryAction";
+}
+
+@cached
+operation Any isEndState() {
+	return self.name = "done";
+}
+
+@cached
+operation StateUsage getSubstates() {
+	return self.getSuccessionAsUsages().
+		collect(sau|Sequence{sau.source, sau.target}).flatten().asSet().
+		reject(e|e.isStartState() or e.isEndState());
+}
+
+@cached
+operation StateUsage getSuccessionAsUsages() {
+	return self.getAllContents().selectByType(SuccessionAsUsage);
+}
+
+@cached
+operation Any getAllContents() {
+	return self.eContents().includingAll(self.eContents().collect(c|c.getAllContents()).flatten());
+}
+
+@cached
+operation Any getFirstContents() {
+	return self.eContents().collect(c|c.eContents()).flatten();
+}
+
+@cached
+operation StateUsage getDocumentation() {
+	return self.getAllContents().selectOne(c|c.isTypeOf(Documentation));
+}
+
+
+@cached
+operation Any getLink() {
+	return "showElement('" + self.id + "','" + self.eResource.uri + "')";
+}
+
+@cached
+operation PartUsage getMass() {
+    for (attr in self.getFirstContents().selectByType(AttributeUsage)) {
+        if (attr.name == "totalMass" or attr.name == "mass") {
+            for (oe in attr.getFirstContents().selectByType(OperatorExpression)) {
+                for (lv in oe.getAllContents().selectByType(LiteralRational)) {
+                    return lv.value;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+@cached
+operation PartUsage partToJson(depth : Integer) {
+	var json = "{";
+    json += "\"name\": \"" + self.name + "\",";
+    json += "\"mass\": " + self.getMass() + ",";
+    json += "\"link\": \"" + self.getLink() + "\",";
+    json += "\"depth\": " + depth + ",";
+
+    var subParts = self.getFirstContents().selectByType(PartUsage);
+    if (subParts.isEmpty()) {
+        json += "\"children\": []";
+    } else {
+        json += "\"children\": [";
+        var first = true;
+        for (sp in subParts) {
+            if (first) { first = false; } else { json += ","; }
+            json += sp.partToJson(depth+1);
+        }
+        json += "]";
+    }
+    json += "}";
+
+    return json;
+}
+
+
+// ---------- Generic helpers for SysML Picto ----------
+
+@cached
+operation Any getAnyName() : String {
+    for (fname in Sequence{"name","declaredName","shortName","identifier","id"}) {
+        var f = self.eClass.getEStructuralFeature(fname);
+        if (f.isDefined()) {
+            var v = self.eGet(f);
+            if (v.isDefined()) return v.toString();
+        }
+    }
+    return "";
+}
+
+@cached
+operation Any getReqId() : String {
+    var n = self.getAnyName();
+    if (n.isUndefined()) return null;
+    n = n.toString().trim();
+    if (n.size() = 0) return null;
+    return n;
+}
+
+@cached
+operation Any isRequirementLike() : Boolean {
+    var cn = self.eClass.name;
+    if (cn.isDefined() and cn.toLowerCase().contains("requirement")) return true;
+
+    var rid = self.getReqId();
+    if (rid.isDefined()) {
+        var u = rid.toUpperCase();
+        if (u.startsWith("MIS-") or u.startsWith("SYS-")) return true;
+    }
+    return false;
+}
+
+@cached
+operation Any getOwningPackageName() : String {
+    var cur = self.eContainer();
+    while (cur.isDefined()) {
+        var cn = cur.eClass.name;
+        if (cn.isDefined() and cn.toLowerCase().contains("package")) {
+            var pn = cur.getAnyName();
+            if (pn.isDefined()) return pn;
+        }
+        cur = cur.eContainer();
+    }
+    return "";
+}
+
+@cached
+operation Any toPumlId(s : String) : String {
+    if (s.isUndefined()) return null;
+
+    var t = s.toString().trim();
+    if (t.size() = 0) return null;
+
+    // Safe regex (no unescaped "(" etc.)
+    t = t.replaceAll("[^A-Za-z0-9_]", "_");
+    t = t.replaceAll("_+", "_");
+
+    if (t.size() > 0 and t.substring(0,1).matches("[0-9]")) {
+        t = "R_" + t;
+    }
+    return t;
+}
+
+/*
+ * NEW: Find a referenced requirement from an element by scanning:
+ * 1) all structural features (references)
+ * 2) cross references (fallback)
+ */
+operation Any firstReferencedRequirement() : Any {
+
+    // 1) Scan structural features (best for "::>" targets)
+    for (sf in self.eClass.eAllStructuralFeatures) {
+        var v = self.eGet(sf);
+        if (v.isUndefined()) continue;
+
+        // Single reference
+        if (v.isKindOf(Any) and v.eClass.isDefined()) {
+            if (v.isRequirementLike()) return v;
+        }
+
+        // Multi-valued reference
+        if (v.isKindOf(Sequence) or v.isKindOf(Collection)) {
+            var rr = v.select(x| x.isDefined() and x.eClass.isDefined() and x.isRequirementLike()).first();
+            if (rr.isDefined()) return rr;
+        }
+    }
+
+    // 2) Fallback: cross references
+    var cr = self.eCrossReferences().select(r|r.isRequirementLike()).first();
+    if (cr.isDefined()) return cr;
+
+    return null;
+}
+
+
+// ------------------------------
+// Requirement derivation helpers
+// ------------------------------
+
+operation Any featureValueAsString(fname : String) : String {
+    var f = self.eClass.getEStructuralFeature(fname);
+    if (f.isUndefined()) return null;
+    var v = self.eGet(f);
+    if (v.isUndefined() or v.isUndefined()) return null;
+
+    // If it is a collection, try first element
+    if (v.isKindOf(Sequence) or v.isKindOf(Collection)) {
+        if (v.isEmpty()) return null;
+        v = v.first();
+    }
+
+    return v.toString();
+}
+
+// Collect all string-ish values from this element + all its contents
+operation Any collectStrings() : Sequence {
+    var strings = Sequence{};
+    var nodes = self.getAllContents().including(self);
+
+    for (n in nodes) {
+        // Try common string slots in SysML v2 AST
+        for (fname in Sequence{"name","declaredName","shortName","identifier","id","value","body","text","literal"}) {
+            var s = n.featureValueAsString(fname);
+            if (s.isDefined()) {
+                s = s.toString().trim();
+                if (s.size() > 0) strings.add(s);
+            }
+        }
+    }
+
+    return strings;
+}
+
+// Extract first token like MIS-020 or SYS-010 from any of the collected strings
+operation Any extractReqToken() : String {
+    for (s in self.collectStrings()) {
+        // If the string contains MIS-### or SYS-###, capture it
+        if (s.matches(".*(MIS|SYS)-[0-9]+.*")) {
+            // Pull the token out
+            var token = s.replaceAll(".*((MIS|SYS)-[0-9]+).*", "$1");
+            if (token.isDefined() and token.trim().size() > 0) return token;
+        }
+    }
+    return null;
+}
+
+
+@cached
+operation Any escapeJson() : String {
+    if (self.isUndefined() or self.isUndefined()) return "";
+    var t = self.toString();
+    // Escape for JSON embedded in JS
+    t = t.replaceAll("\\\\", "\\\\\\\\");
+    t = t.replaceAll("\"", "\\\\\"");
+    t = t.replaceAll("\n", " ");
+    t = t.replaceAll("\r", " ");
+    return t;
+}
+
+/*
+ * Collect string-ish values from this element (NOT recursive).
+ * We will call this on every node in a subtree.
+ */
+@cached
+operation Any localStrings() : Sequence {
+    var strings = Sequence{};
+    var stringFeatures = Sequence{"name","declaredName","shortName","identifier","id","value","body","text","literal"};
+
+    for (fname in stringFeatures) {
+        var f = self.eClass.getEStructuralFeature(fname);
+        if (f.isDefined()) {
+            var v = self.eGet(f);
+            if (v.isDefined() and not v.isUndefined()) {
+                if (v.isKindOf(Sequence) or v.isKindOf(Collection)) {
+                    for (vv in v) {
+                        if (vv.isDefined() and not vv.isUndefined()) {
+                            var s = vv.toString().trim();
+                            if (s.size() > 0) strings.add(s);
+                        }
+                    }
+                } else {
+                    var s = v.toString().trim();
+                    if (s.size() > 0) strings.add(s);
+                }
+            }
+        }
+    }
+    return strings;
+}
+
+/*
+ * From a bunch of strings, try to extract a MIS-### token and a SYS-### token.
+ * Returns Map{"mis"=..., "sys"=...} where values may be null.
+ */
+@cached
+operation Any extractMisSys() : Map {
+    var mis = null;
+    var sys = null;
+
+    for (s in self.localStrings()) {
+        if (mis.isUndefined() and s.matches(".*MIS-[0-9]+.*")) {
+            mis = s.replaceAll(".*(MIS-[0-9]+).*", "$1");
+        }
+        if (sys.isUndefined() and s.matches(".*SYS-[0-9]+.*")) {
+            sys = s.replaceAll(".*(SYS-[0-9]+).*", "$1");
+        }
+        if (mis.isDefined() and sys.isDefined()) break;
+    }
+
+    return Map{"mis"=mis, "sys"=sys};
+}
+
+
+
+@cached
+operation Any extractMisSysRefs() : Map {
+    var mis = null;
+    var sys = null;
+
+    // 1) First try to find MIS/SYS in string-like features (what we already do)
+    var ms = self.extractMisSys(); // uses localStrings() + regex
+    mis = ms.get("mis");
+    sys = ms.get("sys");
+    if (mis.isDefined() and sys.isDefined()) return Map{"mis"=mis, "sys"=sys};
+
+    // 2) If not found, try common reference feature names for relationships
+    var refFeatures = Sequence{
+        "source","target","sources","targets",
+        "client","supplier","clients","suppliers",
+        "from","to","origin","destination"
+    };
+
+    for (fname in refFeatures) {
+        var f = self.eClass.getEStructuralFeature(fname);
+        if (f.isDefined()) {
+            var v = self.eGet(f);
+            if (not v.isUndefined()) {
+
+                // Handle single reference
+                if (not (v.isKindOf(Sequence) or v.isKindOf(Collection))) {
+                    var r = v;
+                    if (r.isDefined() and r.isRequirementLike()) {
+                        var id = r.getReqId();
+                        if (id.isDefined()) {
+                            var u = id.toUpperCase();
+                            if (mis.isUndefined() and u.startsWith("MIS-")) mis = id;
+                            if (sys.isUndefined() and u.startsWith("SYS-")) sys = id;
+                        }
+                    }
+                }
+                // Handle multi-valued reference
+                else {
+                    for (r in v) {
+                        if (r.isDefined() and r.isRequirementLike()) {
+                            var id = r.getReqId();
+                            if (id.isDefined()) {
+                                var u = id.toUpperCase();
+                                if (mis.isUndefined() and u.startsWith("MIS-")) mis = id;
+                                if (sys.isUndefined() and u.startsWith("SYS-")) sys = id;
+                            }
+                        }
+                        if (mis.isDefined() and sys.isDefined()) break;
+                    }
+                }
+            }
+        }
+        if (mis.isDefined() and sys.isDefined()) break;
+    }
+
+    return Map{"mis"=mis, "sys"=sys};
+}
+
+
+// -------------------------------
+// State predecessor/successor API
+// -------------------------------
+
+// ----------------------------------------
+// Find owning state machine root (StateUsage)
+// ----------------------------------------
+@cached
+operation StateUsage getOwningStateMachine() : StateUsage {
+    var cur = self;
+    while (cur.isDefined()) {
+        // We treat a StateUsage as a "machine root" if it contains any SuccessionAsUsage
+        if (cur.isTypeOf(StateUsage) and cur.getAllContents().selectByType(SuccessionAsUsage).size() > 0) {
+            return cur;
+        }
+        cur = cur.eContainer();
+    }
+    // fallback: at least return self
+    return self;
+}
+
+@cached
+operation StateUsage getAllSuccessionAsUsagesForMachine() : Sequence {
+    var root = self.getOwningStateMachine();
+    return root.getAllContents().selectByType(SuccessionAsUsage);
+}
+
+@cached
+operation StateUsage getSuccessorStates() : Sequence {
+    var out = Sequence{};
+    for (sau in self.getAllSuccessionAsUsagesForMachine()) {
+        if (sau.source.isDefined() and sau.source.includes(self)) {
+            if (sau.target.isDefined() and sau.target.size() > 0) out.addAll(sau.target);
+        }
+    }
+    return out.asSet().asSequence().reject(s | s.isStartState() or s.isEndState());
+}
+
+@cached
+operation StateUsage getPredecessorStates() : Sequence {
+    var inc = Sequence{};
+    for (sau in self.getAllSuccessionAsUsagesForMachine()) {
+        if (sau.target.isDefined() and sau.target.includes(self)) {
+            if (sau.source.isDefined() and sau.source.size() > 0) inc.addAll(sau.source);
+        }
+    }
+    return inc.asSet().asSequence().reject(s | s.isStartState() or s.isEndState());
+}
+
+@cached
+operation StateUsage getStateLabel() : String {
+    if (self.name.isDefined() and self.name.toString().trim().size() > 0) return self.name.toString();
+    return self.getLabel();
+}
+
+@cached
+operation StateUsage getStateLink() : String {
+    return self.getLink();
+}
+
+

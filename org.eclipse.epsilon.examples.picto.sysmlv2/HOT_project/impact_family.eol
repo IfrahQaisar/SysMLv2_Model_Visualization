@@ -1,0 +1,1124 @@
+operation writeTextFile(pathStr : String, content : String) {
+  var Paths = Native("java.nio.file.Paths");
+  var Files = Native("java.nio.file.Files");
+
+  var realPath = pathStr.startsWith("file:") ? pathStr.substring(5) : pathStr;
+  var slash = realPath.lastIndexOf("/");
+
+  if (slash > 0) {
+    var dirStr = realPath.substring(0, slash);
+    Files.createDirectories(Paths.get(dirStr));
+  }
+
+  Files.writeString(Paths.get(realPath), content);
+}
+
+operation readSpec() : Map {
+
+  var Paths = Native("java.nio.file.Paths");
+  var Files = Native("java.nio.file.Files");
+
+  var pathStr = "/Users/iqr01/eclipse-workspace-test/org.eclipse.epsilon.examples.picto.sysmlv2/HOT_project/impact_view_spec.json";
+  var jsonText = Files.readString(Paths.get(pathStr)).toString();
+
+  var spec = Map{
+    "title" = "Model Exploration View",
+    "entryPointType" = "component",
+    "concerns" = Sequence{"structural"},
+    "maxDepth" = 2
+  };
+
+  // EntryPointType
+  var entryTypes = Sequence{};
+  var entryKey = "\"entryPointType\"";
+  var entryPos = jsonText.indexOf(entryKey);
+
+  if (entryPos >= 0) {
+    var openBracket = jsonText.indexOf("[", entryPos);
+    var closeBracket = jsonText.indexOf("]", openBracket);
+
+    if (openBracket >= 0 and closeBracket > openBracket) {
+      var entryText = jsonText.substring(openBracket + 1, closeBracket);
+
+      if (entryText.contains("\"component\"")) entryTypes.add("component");
+      if (entryText.contains("\"action\"")) entryTypes.add("action");
+      if (entryText.contains("\"requirement\"")) entryTypes.add("requirement");
+      if (entryText.contains("\"interface\"")) entryTypes.add("interface");
+    }
+  }
+
+  if (entryTypes.size() > 0) {
+    spec.put("entryPointType", entryTypes);
+  } else {
+    spec.put("entryPointType", Sequence{"component"});
+  }
+
+  // ImpactDirection
+  var directionKey = "\"impactDirection\"";
+  var directionPos = jsonText.indexOf(directionKey);
+
+  if (directionPos >= 0) {
+    var dirOpenBracket = jsonText.indexOf("[", directionPos);
+    var dirCloseBracket = jsonText.indexOf("]", dirOpenBracket);
+
+    if (dirOpenBracket >= 0 and dirCloseBracket > dirOpenBracket) {
+      var dirText = jsonText.substring(dirOpenBracket + 1, dirCloseBracket);
+
+      if (dirText.contains("\"downstream\"")) spec.put("impactDirection", "downstream");
+      else if (dirText.contains("\"upstream\"")) spec.put("impactDirection", "upstream");
+    }
+    else {
+      var dirTail = jsonText.substring(directionPos, directionPos + 80);
+      if (dirTail.contains("\"downstream\"")) spec.put("impactDirection", "downstream");
+      else if (dirTail.contains("\"upstream\"")) spec.put("impactDirection", "upstream");
+    }
+  }
+
+  // maxDepth
+  if (jsonText.contains("\"maxDepth\"")) {
+    if (jsonText.contains("5")) spec.put("maxDepth", 5);
+    else if (jsonText.contains("4")) spec.put("maxDepth", 4);
+    else if (jsonText.contains("3")) spec.put("maxDepth", 3);
+    else if (jsonText.contains("2")) spec.put("maxDepth", 2);
+    else if (jsonText.contains("1")) spec.put("maxDepth", 1);
+  }
+
+  // concerns
+  var concerns = Sequence{};
+  var concernsKey = "\"concerns\"";
+  var concernsPos = jsonText.indexOf(concernsKey);
+
+  if (concernsPos >= 0) {
+    var openBracket = jsonText.indexOf("[", concernsPos);
+    var closeBracket = jsonText.indexOf("]", openBracket);
+
+    if (openBracket >= 0 and closeBracket > openBracket) {
+      var concernsText = jsonText.substring(openBracket + 1, closeBracket);
+
+      if (concernsText.contains("\"structural\"")) concerns.add("structural");
+      if (concernsText.contains("\"behavior\"")) concerns.add("behavior");
+      if (concernsText.contains("\"requirement\"")) concerns.add("requirement");
+      if (concernsText.contains("\"interface\"")) concerns.add("interface");
+    }
+  }
+
+  if (concerns.size() > 0) {
+    spec.put("concerns", concerns);
+  }
+
+  // analysisIntent
+  var intents = Sequence{};
+  var intentKey = "\"analysisIntent\"";
+  var intentPos = jsonText.indexOf(intentKey);
+
+  if (intentPos >= 0) {
+    var openBracket = jsonText.indexOf("[", intentPos);
+    var closeBracket = jsonText.indexOf("]", openBracket);
+
+    if (openBracket >= 0 and closeBracket > openBracket) {
+      var intentText = jsonText.substring(openBracket + 1, closeBracket);
+
+      if (intentText.contains("\"propagation\"")) intents.add("propagation");
+      if (intentText.contains("\"dependency\"")) intents.add("dependency");
+      if (intentText.contains("\"traceability\"")) intents.add("traceability");
+    }
+  }
+
+  if (intents.size() > 0) {
+    spec.put("analysisIntent", intents);
+  } else {
+    spec.put("analysisIntent", Sequence{"propagation"});
+  }
+
+  return spec;
+}
+
+operation generateImpactEglFromSpec(spec : Map) : String {
+
+  var title = spec.containsKey("title") ? spec.get("title").toString() : "Impact Analysis";
+  var entryPointTypes = spec.containsKey("entryPointType") ? spec.get("entryPointType") : Sequence{"component"};
+  var impactDirection = spec.containsKey("impactDirection") ? spec.get("impactDirection").toString() : "downstream";
+  var analysisIntents = spec.containsKey("analysisIntent") ? spec.get("analysisIntent") : Sequence{"propagation"};
+  var concerns = spec.containsKey("concerns") ? spec.get("concerns") : Sequence{"structural"};
+  var maxDepth = spec.containsKey("maxDepth") ? spec.get("maxDepth") : 2;
+  var analysisIntent = analysisIntents.first().toString();
+
+  var concernsBlock = "<ul>";
+  for (c in concerns) {
+    concernsBlock = concernsBlock + "<li>" + c.toString() + "</li>";
+  }
+  concernsBlock = concernsBlock + "</ul>";
+
+ var entryPointTypesText = "";
+var first = true;
+
+for (et in entryPointTypes) {
+  var s = et.toString().trim();
+  if (s.size() > 0) {
+    if (not first) entryPointTypesText = entryPointTypesText + ", ";
+    entryPointTypesText = entryPointTypesText + s;
+    first = false;
+  }
+}
+
+  var egl = "";
+
+  egl = egl + "[%";
+  egl = egl + "\n";
+  egl = egl + "var title = \"" + title + "\";";
+  egl = egl + "\n";
+  egl = egl + "var impactDirection = \"" + impactDirection + "\";";
+  egl = egl + "\n";
+  egl = egl + "var analysisIntent = \"" + analysisIntent + "\";";
+  egl = egl + "\n";
+  egl = egl + "var maxDepth = " + maxDepth.asString() + ";";
+  egl = egl + "\n";
+  egl = egl + "var entryPointTypesText = \"" + entryPointTypesText + "\";";
+  egl = egl + "\n";
+
+  egl = egl + "var concernsSeq = Sequence{";
+  var firstConcern = true;
+  for (c in concerns) {
+    if (not firstConcern) egl = egl + ", ";
+    egl = egl + "\"" + c.toString() + "\"";
+    firstConcern = false;
+  }
+  egl = egl + "};";
+  egl = egl + "\n";
+
+  egl = egl + "var entryPointTypesSeq = Sequence{";
+  var firstEntry = true;
+  for (et in entryPointTypes) {
+    if (not firstEntry) egl = egl + ", ";
+    egl = egl + "\"" + et.toString() + "\"";
+    firstEntry = false;
+  }
+  egl = egl + "};";
+  egl = egl + "\n";
+
+  egl = egl + "var concernsBlock = \"" + concernsBlock + "\";";
+  egl = egl + "\n";
+
+  egl = egl + "var concernOptionsHtml = \"<option value='all'>All</option>\";";
+  egl = egl + "\n";
+  egl = egl + "for (cc in concernsSeq) {";
+  egl = egl + "\n";
+  egl = egl + "  var cLabel = cc.toString();";
+  egl = egl + "\n";
+  egl = egl + "  var pretty = cLabel.substring(0,1).toUpperCase() + cLabel.substring(1);";
+  egl = egl + "\n";
+  egl = egl + "  concernOptionsHtml = concernOptionsHtml + \"<option value='\" + cLabel + \"'>\" + pretty + \"</option>\";";
+  egl = egl + "\n";
+  egl = egl + "}";
+  egl = egl + "\n";
+
+  egl = egl + "var depthOptionsHtml = \"\";";
+  egl = egl + "\n";
+  egl = egl + "var dd = 1;";
+  egl = egl + "\n";
+  egl = egl + "while (dd <= maxDepth) {";
+  egl = egl + "\n";
+  egl = egl + "  depthOptionsHtml = depthOptionsHtml + \"<option value='\" + dd.toString() + \"'>\" + dd.toString() + \"</option>\";";
+  egl = egl + "\n";
+  egl = egl + "  dd = dd + 1;";
+  egl = egl + "\n";
+  egl = egl + "}";
+  egl = egl + "\n";
+
+  //egl = egl + "var startOptionsHtml = \"\";";
+  egl = egl + "var startOptionsHtml = \"<option value=''>-- Select start element --</option>\";";
+  
+  
+  egl = egl + "\n";
+  egl = egl + "var seenStartOptions = Sequence{};";
+  egl = egl + "\n";
+  egl = egl + "for (e in EObject.all) {";
+  egl = egl + "\n";
+  egl = egl + "  var label = \"\";";
+  egl = egl + "\n";
+  
+  egl = egl + "  if (e.hasProperty(\"declaredName\") and not e.declaredName.isUndefined()) {";
+egl = egl + "\n";
+egl = egl + "    label = e.declaredName.toString().trim();";
+egl = egl + "\n";
+egl = egl + "  }";
+egl = egl + "\n";
+egl = egl + "  else if (e.hasProperty(\"name\") and not e.name.isUndefined()) {";
+egl = egl + "\n";
+egl = egl + "    label = e.name.toString().trim();";
+egl = egl + "\n";
+egl = egl + "  }";
+egl = egl + "\n";
+egl = egl + "  label = label.replace(\"\\n\", \" \").replace(\"\\r\", \" \").trim();";
+  
+  
+  egl = egl + "  var t = e.eClass().name.toLowerCase();";
+  egl = egl + "\n";
+  egl = egl + "  var entryKind = \"other\";";
+  egl = egl + "\n";
+  egl = egl + "  if (t.contains(\"action\") or t.contains(\"behavior\") or t.contains(\"state\") or t.contains(\"eventoccurrence\")) entryKind = \"action\";";
+  egl = egl + "\n";
+  egl = egl + "  else if (t.contains(\"requirement\")) entryKind = \"requirement\";";
+  egl = egl + "\n";
+  egl = egl + "  else if (t.contains(\"port\") or t.contains(\"interface\") or t.contains(\"interaction\") or t.contains(\"connection\") or t.contains(\"bindingconnector\") or t.contains(\"flowusage\") or t.contains(\"flowconnection\")) entryKind = \"interface\";";
+  egl = egl + "\n";
+  egl = egl + "  else if (t.contains(\"partusage\") or t.contains(\"partdefinition\")) entryKind = \"component\";";
+  egl = egl + "\n";
+  egl = egl + "  if (label.trim().size() > 0 and entryKind <> \"other\" and entryPointTypesSeq.includes(entryKind)) {";
+  egl = egl + "\n";
+  egl = egl + "    if (not label.startsWith(\"~\")) {";
+  egl = egl + "\n";
+  egl = egl + "      var safeLabel = label.replace(\"&\", \"&amp;\");";
+  egl = egl + "\n";
+  egl = egl + "      safeLabel = safeLabel.replace(\"<\", \"&lt;\");";
+  egl = egl + "\n";
+  egl = egl + "      safeLabel = safeLabel.replace(\">\", \"&gt;\");";
+  egl = egl + "\n";
+  egl = egl + "      var optionKey = entryKind + \"::\" + safeLabel;";
+  egl = egl + "\n";
+  egl = egl + "      if (not seenStartOptions.includes(optionKey)) {";
+  egl = egl + "\n";
+  egl = egl + "        seenStartOptions.add(optionKey);";
+  egl = egl + "\n";
+  egl = egl + "        startOptionsHtml = startOptionsHtml + \"<option value='\" + safeLabel + \"'>[\" + entryKind + \"] \" + safeLabel + \"</option>\";";
+  egl = egl + "\n";
+  egl = egl + "      }";
+  egl = egl + "\n";
+  egl = egl + "    }";
+  egl = egl + "\n";
+  egl = egl + "  }";
+  egl = egl + "\n";
+  egl = egl + "}";
+  egl = egl + "\n";
+
+  egl = egl + "var nodeStoreHtml = \"\";";
+  egl = egl + "\n";
+  egl = egl + "var nodeStore = nodeStoreHtml;";
+  egl = egl + "\n";
+
+  egl = egl + "var globalNodeStoreHtml = \"\";";
+  egl = egl + "\n";
+  egl = egl + "var globalEdgeStoreHtml = \"\";";
+  egl = egl + "\n";
+  egl = egl + "var seenGlobalNodes = Sequence{};";
+  egl = egl + "\n";
+  egl = egl + "var seenGlobalEdges = Sequence{};";
+  egl = egl + "\n";
+
+  egl = egl + "for (e in EObject.all) {";
+  egl = egl + "\n";
+  egl = egl + "  var label = \"\";";
+  egl = egl + "\n";
+  egl = egl + "  if (e.hasProperty(\"declaredName\") and not e.declaredName.isUndefined() and e.declaredName.toString().trim().size() > 0) {";
+  egl = egl + "\n";
+  egl = egl + "    label = e.declaredName.toString().trim();";
+  egl = egl + "\n";
+  egl = egl + "  }";
+  egl = egl + "\n";
+  egl = egl + "  else if (e.hasProperty(\"name\") and not e.name.isUndefined() and e.name.toString().trim().size() > 0) {";
+  egl = egl + "\n";
+  egl = egl + "    label = e.name.toString().trim();";
+  egl = egl + "\n";
+  egl = egl + "  }";
+  egl = egl + "\n";
+  egl = egl + "  label = label.replace(\"\\n\", \" \").replace(\"\\r\", \" \").trim();";
+  egl = egl + "\n";
+  egl = egl + "  var kind = \"other\";";
+  egl = egl + "\n";
+  egl = egl + "  var t = e.eClass().name.toLowerCase();";
+  egl = egl + "\n";
+  egl = egl + "  if (t.contains(\"state\") or t.contains(\"action\") or t.contains(\"behavior\") or t.contains(\"eventoccurrence\")) kind = \"behavior\";";
+  egl = egl + "\n";
+  egl = egl + "  else if (t.contains(\"requirement\") or t.contains(\"satisfy\") or t.contains(\"derive\") or t.contains(\"refine\")) kind = \"requirement\";";
+  egl = egl + "\n";
+  egl = egl + "  else if (t.contains(\"port\") or t.contains(\"interface\") or t.contains(\"interaction\") or t.contains(\"connection\") or t.contains(\"bindingconnector\") or t.contains(\"flowusage\")) kind = \"interface\";";
+  egl = egl + "\n";
+  egl = egl + "  else if (t.contains(\"partusage\") or t.contains(\"partdefinition\") or t.contains(\"attributeusage\") or t.contains(\"attributedefinition\") or t.contains(\"enumerationusage\") or t.contains(\"enumerationdefinition\") or t.contains(\"itemdefinition\") or t.contains(\"occurrenceusage\")) kind = \"structural\";";
+  egl = egl + "\n";
+  egl = egl + "  if (label.size() > 0 and label <> \"null\" and not label.startsWith(\"~\") and label <> \"Definitions\" and kind <> \"other\" and concernsSeq.includes(kind)) {";
+  egl = egl + "\n";
+  egl = egl + "    var safeLabel = label.replace(\"&\", \"&amp;\");";
+  egl = egl + "\n";
+  egl = egl + "    safeLabel = safeLabel.replace(\"<\", \"&lt;\");";
+  egl = egl + "\n";
+  egl = egl + "    safeLabel = safeLabel.replace(\">\", \"&gt;\");";
+  egl = egl + "\n";
+  egl = egl + "    var nodeKey = kind + \"::\" + safeLabel;";
+  egl = egl + "\n";
+  egl = egl + "    if (not seenGlobalNodes.includes(nodeKey)) {";
+  egl = egl + "\n";
+  egl = egl + "      seenGlobalNodes.add(nodeKey);";
+  egl = egl + "\n";
+  egl = egl + "      globalNodeStoreHtml = globalNodeStoreHtml + \"<div class='impact-global-node' data-key='\" + nodeKey + \"' data-label='\" + safeLabel + \"' data-kind='\" + kind + \"'></div>\";";
+  egl = egl + "\n";
+  egl = egl + "    }";
+  egl = egl + "\n";
+  egl = egl + "  }";
+  egl = egl + "\n";
+  egl = egl + "}";
+  egl = egl + "\n";
+
+  egl = egl + "for (src in EObject.all) {";
+  egl = egl + "\n";
+  egl = egl + "  var srcLabel = \"\";";
+  egl = egl + "\n";
+  egl = egl + "  if (src.hasProperty(\"declaredName\") and not src.declaredName.isUndefined() and src.declaredName.toString().trim().size() > 0) {";
+  egl = egl + "\n";
+  egl = egl + "    srcLabel = src.declaredName.toString().trim();";
+  egl = egl + "\n";
+  egl = egl + "  }";
+  egl = egl + "\n";
+  egl = egl + "  else if (src.hasProperty(\"name\") and not src.name.isUndefined() and src.name.toString().trim().size() > 0) {";
+  egl = egl + "\n";
+  egl = egl + "    srcLabel = src.name.toString().trim();";
+  egl = egl + "\n";
+  egl = egl + "  }";
+  egl = egl + "\n";
+  egl = egl + "  srcLabel = srcLabel.replace(\"\\n\", \" \").replace(\"\\r\", \" \").trim();";
+  egl = egl + "\n";
+  egl = egl + "  var srcKind = \"other\";";
+  egl = egl + "\n";
+  egl = egl + "  var st = src.eClass().name.toLowerCase();";
+  egl = egl + "\n";
+  egl = egl + "  if (st.contains(\"state\") or st.contains(\"action\") or st.contains(\"behavior\") or st.contains(\"eventoccurrence\")) srcKind = \"behavior\";";
+  egl = egl + "\n";
+  egl = egl + "  else if (st.contains(\"requirement\") or st.contains(\"satisfy\") or st.contains(\"derive\") or st.contains(\"refine\")) srcKind = \"requirement\";";
+  egl = egl + "\n";
+  egl = egl + "  else if (st.contains(\"port\") or st.contains(\"interface\") or st.contains(\"interaction\") or st.contains(\"connection\") or st.contains(\"bindingconnector\") or st.contains(\"flowusage\")) srcKind = \"interface\";";
+  egl = egl + "\n";
+  egl = egl + "  else if (st.contains(\"partusage\") or st.contains(\"partdefinition\") or st.contains(\"attributeusage\") or st.contains(\"attributedefinition\") or st.contains(\"enumerationusage\") or st.contains(\"enumerationdefinition\") or st.contains(\"itemdefinition\") or st.contains(\"occurrenceusage\")) srcKind = \"structural\";";
+  egl = egl + "\n";
+  egl = egl + "  if (srcLabel.size() > 0 and srcKind <> \"other\" and concernsSeq.includes(srcKind)) {";
+  egl = egl + "\n";
+  egl = egl + "    var safeSrcLabel = srcLabel.replace(\"&\", \"&amp;\");";
+  egl = egl + "\n";
+  egl = egl + "    safeSrcLabel = safeSrcLabel.replace(\"<\", \"&lt;\");";
+  egl = egl + "\n";
+  egl = egl + "    safeSrcLabel = safeSrcLabel.replace(\">\", \"&gt;\");";
+  egl = egl + "\n";
+  egl = egl + "    var srcKey = srcKind + \"::\" + safeSrcLabel;";
+  egl = egl + "\n";
+  egl = egl + "    for (p in src.eClass().eAllReferences) {";
+  egl = egl + "\n";
+  egl = egl + "      var refName = p.name.toLowerCase();";
+  egl = egl + "\n";
+  //egl = egl + "      if (refName = \"owner\" or refName = \"owningnamespace\" or refName = \"namespace\" or refName = \"element\" or refName = \"ownedrelationship\" or refName = \"ownedmember\" or refName = \"ownedmemberelement\" or refName = \"documentation\" or refName = \"comment\" or refName = \"annotatingelement\" or refName = \"annotatedelement\" or refName = \"ownedannotation\" or refName = \"aliasid\" or refName = \"ownedtextualrepresentation\" or refName = \"source\" or refName = \"target\" or refName = \"relatedelement\") {";
+  egl = egl + "      if (";
+egl = egl + "\n";
+egl = egl + "        refName = \"owner\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"owningnamespace\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"namespace\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"owningtype\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"owningfeature\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"owningmembership\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"owningrelationship\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"ownedelement\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"ownedrelationship\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"ownedmember\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"ownedmemberelement\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"membership\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"ownedmembership\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"member\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"element\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"source\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"target\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"relatedelement\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"documentation\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"comment\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"annotatingelement\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"annotatedelement\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"ownedannotation\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"aliasid\" or";
+egl = egl + "\n";
+egl = egl + "        refName = \"ownedtextualrepresentation\"";
+egl = egl + "\n";
+egl = egl + "      ) {";
+  
+  egl = egl + "\n";
+  egl = egl + "      }";
+  egl = egl + "\n";
+  egl = egl + "      else {";
+  egl = egl + "\n";
+  egl = egl + "        var v = src.eGet(p);";
+  egl = egl + "\n";
+  egl = egl + "        if (v.isUndefined()) {";
+  egl = egl + "\n";
+  egl = egl + "        }";
+  egl = egl + "\n";
+  egl = egl + "        else if (v.isKindOf(Collection)) {";
+  egl = egl + "\n";
+  egl = egl + "          for (x in v) {";
+  egl = egl + "\n";
+  egl = egl + "            if (not x.isUndefined()) {";
+  egl = egl + "\n";
+  egl = egl + "              var tgtLabel = \"\";";
+  egl = egl + "\n";
+  egl = egl + "              if (x.hasProperty(\"declaredName\") and not x.declaredName.isUndefined() and x.declaredName.toString().trim().size() > 0) tgtLabel = x.declaredName.toString().trim();";
+  egl = egl + "\n";
+  egl = egl + "              else if (x.hasProperty(\"name\") and not x.name.isUndefined() and x.name.toString().trim().size() > 0) tgtLabel = x.name.toString().trim();";
+  egl = egl + "\n";
+  egl = egl + "              tgtLabel = tgtLabel.replace(\"\\n\", \" \").replace(\"\\r\", \" \").trim();";
+  egl = egl + "\n";
+  egl = egl + "              var tgtKind = \"other\";";
+  egl = egl + "\n";
+  egl = egl + "              var tt = x.eClass().name.toLowerCase();";
+  egl = egl + "\n";
+  egl = egl + "              if (tt.contains(\"state\") or tt.contains(\"action\") or tt.contains(\"behavior\") or tt.contains(\"eventoccurrence\")) tgtKind = \"behavior\";";
+  egl = egl + "\n";
+  egl = egl + "              else if (tt.contains(\"requirement\") or tt.contains(\"satisfy\") or tt.contains(\"derive\") or tt.contains(\"refine\")) tgtKind = \"requirement\";";
+  egl = egl + "\n";
+  egl = egl + "              else if (tt.contains(\"port\") or tt.contains(\"interface\") or tt.contains(\"interaction\") or tt.contains(\"connection\") or tt.contains(\"bindingconnector\") or tt.contains(\"flowusage\")) tgtKind = \"interface\";";
+  egl = egl + "\n";
+  egl = egl + "              else if (tt.contains(\"partusage\") or tt.contains(\"partdefinition\") or tt.contains(\"attributeusage\") or tt.contains(\"attributedefinition\") or tt.contains(\"enumerationusage\") or tt.contains(\"enumerationdefinition\") or tt.contains(\"itemdefinition\") or tt.contains(\"occurrenceusage\")) tgtKind = \"structural\";";
+  egl = egl + "\n";
+  egl = egl + "              if (tgtLabel.size() > 0 and tgtKind <> \"other\" and concernsSeq.includes(tgtKind)) {";
+  egl = egl + "\n";
+  egl = egl + "                var safeTgtLabel = tgtLabel.replace(\"&\", \"&amp;\");";
+  egl = egl + "\n";
+  egl = egl + "                safeTgtLabel = safeTgtLabel.replace(\"<\", \"&lt;\");";
+  egl = egl + "\n";
+  egl = egl + "                safeTgtLabel = safeTgtLabel.replace(\">\", \"&gt;\");";
+  egl = egl + "\n";
+  egl = egl + "                var tgtKey = tgtKind + \"::\" + safeTgtLabel;";
+  egl = egl + "\n";
+  egl = egl + "                var edgeKey = srcKey + \"-->\" + tgtKey;";
+  egl = egl + "\n";
+  egl = egl + "                if (not seenGlobalEdges.includes(edgeKey)) {";
+  egl = egl + "\n";
+  egl = egl + "                  seenGlobalEdges.add(edgeKey);";
+  egl = egl + "\n";
+  egl = egl + "                  globalEdgeStoreHtml = globalEdgeStoreHtml + \"<div class='impact-global-edge' data-source='\" + srcKey + \"' data-target='\" + tgtKey + \"'></div>\";";
+  egl = egl + "\n";
+  egl = egl + "                }";
+  egl = egl + "\n";
+  egl = egl + "              }";
+  egl = egl + "\n";
+  egl = egl + "            }";
+  egl = egl + "\n";
+  egl = egl + "          }";
+  egl = egl + "\n";
+  egl = egl + "        }";
+  egl = egl + "\n";
+  egl = egl + "        else {";
+  egl = egl + "\n";
+  egl = egl + "          if (not v.isUndefined()) {";
+  egl = egl + "\n";
+  egl = egl + "            var tgtLabel = \"\";";
+  egl = egl + "\n";
+  egl = egl + "            if (v.hasProperty(\"declaredName\") and not v.declaredName.isUndefined() and v.declaredName.toString().trim().size() > 0) tgtLabel = v.declaredName.toString().trim();";
+  egl = egl + "\n";
+  egl = egl + "            else if (v.hasProperty(\"name\") and not v.name.isUndefined() and v.name.toString().trim().size() > 0) tgtLabel = v.name.toString().trim();";
+  egl = egl + "\n";
+  egl = egl + "            tgtLabel = tgtLabel.replace(\"\\n\", \" \").replace(\"\\r\", \" \").trim();";
+  egl = egl + "\n";
+  egl = egl + "            var tgtKind = \"other\";";
+  egl = egl + "\n";
+  egl = egl + "            var tt = v.eClass().name.toLowerCase();";
+  egl = egl + "\n";
+  egl = egl + "            if (tt.contains(\"state\") or tt.contains(\"action\") or tt.contains(\"behavior\") or tt.contains(\"eventoccurrence\")) tgtKind = \"behavior\";";
+  egl = egl + "\n";
+  egl = egl + "            else if (tt.contains(\"requirement\") or tt.contains(\"satisfy\") or tt.contains(\"derive\") or tt.contains(\"refine\")) tgtKind = \"requirement\";";
+  egl = egl + "\n";
+  egl = egl + "            else if (tt.contains(\"port\") or tt.contains(\"interface\") or tt.contains(\"interaction\") or tt.contains(\"connection\") or tt.contains(\"bindingconnector\") or tt.contains(\"flowusage\")) tgtKind = \"interface\";";
+  egl = egl + "\n";
+  egl = egl + "            else if (tt.contains(\"partusage\") or tt.contains(\"partdefinition\") or tt.contains(\"attributeusage\") or tt.contains(\"attributedefinition\") or tt.contains(\"enumerationusage\") or tt.contains(\"enumerationdefinition\") or tt.contains(\"itemdefinition\") or tt.contains(\"occurrenceusage\")) tgtKind = \"structural\";";
+  egl = egl + "\n";
+  egl = egl + "            if (tgtLabel.size() > 0 and tgtKind <> \"other\" and concernsSeq.includes(tgtKind)) {";
+  egl = egl + "\n";
+  egl = egl + "              var safeTgtLabel = tgtLabel.replace(\"&\", \"&amp;\");";
+  egl = egl + "\n";
+  egl = egl + "              safeTgtLabel = safeTgtLabel.replace(\"<\", \"&lt;\");";
+  egl = egl + "\n";
+  egl = egl + "              safeTgtLabel = safeTgtLabel.replace(\">\", \"&gt;\");";
+  egl = egl + "\n";
+  egl = egl + "              var tgtKey = tgtKind + \"::\" + safeTgtLabel;";
+  egl = egl + "\n";
+  egl = egl + "              var edgeKey = srcKey + \"-->\" + tgtKey;";
+  egl = egl + "\n";
+  egl = egl + "              if (not seenGlobalEdges.includes(edgeKey)) {";
+  egl = egl + "\n";
+  egl = egl + "                seenGlobalEdges.add(edgeKey);";
+  egl = egl + "\n";
+  egl = egl + "                globalEdgeStoreHtml = globalEdgeStoreHtml + \"<div class='impact-global-edge' data-source='\" + srcKey + \"' data-target='\" + tgtKey + \"'></div>\";";
+  egl = egl + "\n";
+  egl = egl + "              }";
+  egl = egl + "\n";
+  egl = egl + "            }";
+  egl = egl + "\n";
+  egl = egl + "          }";
+  egl = egl + "\n";
+  egl = egl + "        }";
+  egl = egl + "\n";
+  egl = egl + "      }";
+  egl = egl + "\n";
+  egl = egl + "    }";
+  egl = egl + "\n";
+  egl = egl + "  }";
+  egl = egl + "\n";
+  egl = egl + "}";
+  egl = egl + "\n";
+
+  egl = egl + "var globalNodeStore = globalNodeStoreHtml;";
+  egl = egl + "\n";
+  egl = egl + "var globalEdgeStore = globalEdgeStoreHtml;";
+  egl = egl + "\n";
+
+  egl = egl + "%]";
+  egl = egl + "\n";
+
+  egl = egl + "<html>";
+  egl = egl + "\n";
+  egl = egl + "<body>";
+  egl = egl + "\n";
+  egl = egl + "<div class='analysis-root'>";
+  egl = egl + "\n";
+  egl = egl + "  <h2>[%= title %]</h2>";
+  egl = egl + "\n";
+  
+ egl = egl + "  <details style='margin:8px 0 12px 0; padding:8px 10px; border:1px solid #ddd; border-radius:10px; background:#fafafa; font-size:12px;'>";
+egl = egl + "\n";
+egl = egl + "    <summary style='cursor:pointer; font-weight:600;'>View Configuration</summary>";
+egl = egl + "\n";
+egl = egl + "    <div style='display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; color:#444;'>";
+egl = egl + "\n";
+egl = egl + "      <span><b>Entry:</b> [%= entryPointTypesText %]</span>";
+egl = egl + "\n";
+egl = egl + "      <span><b>Intent:</b> [%= analysisIntent %]</span>";
+egl = egl + "\n";
+egl = egl + "      <span><b>Max depth:</b> [%= maxDepth %]</span>";
+egl = egl + "\n";
+egl = egl + "      <span><b>Concerns:</b> [%= concernsSeq.concat(', ') %]</span>";
+egl = egl + "\n";
+egl = egl + "    </div>";
+egl = egl + "\n";
+egl = egl + "  </details>";
+  
+  egl = egl + "  <div class='toolbar' style='margin:12px 0; display:flex; flex-wrap:wrap; gap:12px; align-items:center;'>";
+  egl = egl + "\n";
+  egl = egl + "    <label><b>Start element:</b></label>";
+  egl = egl + "\n";
+  egl = egl + "    <select id='startElement'>[%= startOptionsHtml %]</select>";
+  egl = egl + "\n";
+  egl = egl + "    <label style='margin-left:12px;'><b>Concern mode:</b></label>";
+  egl = egl + "\n";
+  egl = egl + "    <select id='concernSelect'>[%= concernOptionsHtml %]</select>";
+  egl = egl + "\n";
+  egl = egl + "    <label style='margin-left:12px;'><b>Depth:</b></label>";
+egl = egl + "\n";
+egl = egl + "    <select id='depthSelect'>[%= depthOptionsHtml %]</select>";
+egl = egl + "\n";
+egl = egl + "    <label style='margin-left:12px;'><input type='checkbox' id='orphanToggle' checked='checked'/> Show orphan nodes</label>";
+  egl = egl + "\n";
+  egl = egl + "  </div>";
+  egl = egl + "\n";
+  egl = egl + "  <hr/>";
+  egl = egl + "\n";
+
+  egl = egl + "\n";
+  egl = egl + "  <div id='impactNodeStore' style='display:none'>[%= nodeStore %]</div>";
+  egl = egl + "\n";
+  egl = egl + "  <div id='impactGlobalNodeStore' style='display:none'>[%= globalNodeStore %]</div>";
+  egl = egl + "\n";
+  egl = egl + "  <div id='impactGlobalEdgeStore' style='display:none'>[%= globalEdgeStore %]</div>";
+  egl = egl + "\n";
+
+  egl = egl + "  <style>";
+  egl = egl + "\n";
+  egl = egl + "    #impactBoardWrapper { position: relative; overflow-x: auto; padding: 12px 0; }";
+  egl = egl + "\n";
+ // egl = egl + "    #impactBoard { position: relative; display: flex; gap: 48px; align-items: flex-start; min-height: 500px; padding: 16px 24px 24px 24px; }";
+  egl = egl + "    #impactBoard { position: relative; display: flex; gap: 72px; align-items: flex-start; min-height: 520px; padding: 16px 32px 32px 32px; }";
+  egl = egl + "\n";
+ 
+egl = egl + "    .impact-depth-col { min-width: 280px; position: relative; z-index: 2; display:flex; flex-direction:column; }";
+egl = egl + "\n";
+egl = egl + "    .impact-depth-col[data-depth-col='0'] { min-height: 460px; }";
+egl = egl + "\n";
+egl = egl + "    .impact-depth-col[data-depth-col='0'] .impact-depth-title { margin-bottom:16px; }";
+egl = egl + "\n";
+egl = egl + "    .impact-depth-col[data-depth-col='0'] .impact-card { margin-top: 180px; }";
+ 
+ 
+ 
+ 
+ 
+  egl = egl + "\n";
+  egl = egl + "    .impact-depth-title { font-weight: 700; font-size: 16px; margin-bottom: 16px; color: #444; }";
+  egl = egl + "\n";
+  egl = egl + "    .impact-card {";
+  egl = egl + "\n";
+  egl = egl + "      background: #f7f9fc;";
+  egl = egl + "\n";
+  egl = egl + "      border: 2px solid #5f6b7a;";
+  egl = egl + "\n";
+  egl = egl + "      border-radius: 18px;";
+  egl = egl + "\n";
+  egl = egl + "      padding: 12px 14px;";
+  egl = egl + "\n";
+  egl = egl + "      margin-bottom: 18px;";
+  egl = egl + "\n";
+  egl = egl + "      min-height: 56px;";
+  egl = egl + "\n";
+  egl = egl + "      box-sizing: border-box;";
+  egl = egl + "\n";
+  egl = egl + "      position: relative;";
+  egl = egl + "\n";
+  egl = egl + "    }";
+  egl = egl + "\n";
+  egl = egl + "    .impact-card-label { font-size: 14px; font-weight: 500; color: #222; line-height: 1.25; }";
+  egl = egl + "\n";
+  egl = egl + "    .impact-card-kind { font-size: 12px; color: #555; margin-top: 4px; text-transform: lowercase; }";
+  egl = egl + "\n";
+  egl = egl + "    .impact-card.structural { background: #f2f2f2; }";
+  egl = egl + "\n";
+  egl = egl + "    .impact-card.requirement { background: #f7ead7; }";
+  egl = egl + "\n";
+  egl = egl + "    .impact-card.behavior { background: #e7f0f8; }";
+  egl = egl + "\n";
+  egl = egl + "    .impact-card.interface { background: #e7f3ee; }";
+  egl = egl + "\n";
+  egl = egl + "    .impact-card.root { background: #f2f2f2; }";
+  egl = egl + "\n";
+  egl = egl + "    #impactEdges { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; overflow: visible; }";
+  egl = egl + "\n";
+  egl = egl + "  </style>";
+  egl = egl + "\n";
+
+ // egl = egl + "  <div id='impactDebug' style='margin:8px 0; padding:8px; border:1px solid #ccc; font-size:12px; color:#444;'></div>";
+  egl = egl + "\n";
+
+  egl = egl + "  <div id='impactBoardWrapper'>";
+  egl = egl + "\n";
+  egl = egl + "    <svg id='impactEdges'></svg>";
+  egl = egl + "\n";
+  egl = egl + "    <div id='impactBoard'></div>";
+  egl = egl + "\n";
+  egl = egl + "  </div>";
+  egl = egl + "\n";
+
+ 
+
+egl = egl + "  <script>";
+egl = egl + "\n";
+egl = egl + "    var analysisIntentJs = '[%= analysisIntent %]';";
+egl = egl + "\n";
+egl = egl + "    function readImpactNodes(maxVisibleDepth) {";
+egl = egl + "\n";
+egl = egl + "      var startSel = document.getElementById('startElement');";
+egl = egl + "\n";
+egl = egl + "      var selectedLabel = startSel ? ((startSel.value || '').replace(/\\s+/g, ' ').trim()) : '';";
+egl = egl + "\n";
+egl = egl + "      var concernSel = document.getElementById('concernSelect');";
+egl = egl + "\n";
+egl = egl + "      var selectedConcern = concernSel ? ((concernSel.value || 'all').replace(/\\s+/g, ' ').trim()) : 'all';";
+egl = egl + "\n";
+egl = egl + "      var effectiveDirection = (analysisIntentJs === 'dependency') ? 'upstream' : 'downstream';";
+egl = egl + "\n";
+egl = egl + "      if (!selectedLabel) return [];";
+egl = egl + "\n";
+egl = egl + "      var rawNodes = document.querySelectorAll('#impactGlobalNodeStore .impact-global-node');";
+egl = egl + "\n";
+egl = egl + "      var rawEdges = document.querySelectorAll('#impactGlobalEdgeStore .impact-global-edge');";
+egl = egl + "\n";
+egl = egl + "      var nodeMap = {};";
+egl = egl + "\n";
+egl = egl + "      var adjacency = {};";
+egl = egl + "\n";
+egl = egl + "      var reverseAdjacency = {};";
+egl = egl + "\n";
+egl = egl + "      for (var i = 0; i < rawNodes.length; i++) {";
+egl = egl + "\n";
+egl = egl + "        var n = rawNodes[i];";
+egl = egl + "\n";
+egl = egl + "        var key = n.getAttribute('data-key') || '';";
+egl = egl + "\n";
+egl = egl + "        var label = (n.getAttribute('data-label') || '').replace(/\\s+/g, ' ').trim();";
+egl = egl + "\n";
+egl = egl + "        var kind = (n.getAttribute('data-kind') || '').replace(/\\s+/g, ' ').trim();";
+egl = egl + "\n";
+egl = egl + "        if (key && label) {";
+egl = egl + "\n";
+egl = egl + "          if (selectedConcern === 'all' || kind === selectedConcern) {";
+egl = egl + "\n";
+egl = egl + "            nodeMap[key] = { key: key, label: label, kind: kind || 'structural' };";
+egl = egl + "\n";
+egl = egl + "          }";
+egl = egl + "\n";
+egl = egl + "        }";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "      var selectedKey = '';";
+egl = egl + "\n";
+egl = egl + "      for (var i2 = 0; i2 < rawNodes.length; i2++) {";
+egl = egl + "\n";
+egl = egl + "        var rn = rawNodes[i2];";
+egl = egl + "\n";
+egl = egl + "        var rkey = rn.getAttribute('data-key') || '';";
+egl = egl + "\n";
+egl = egl + "        var rlabel = (rn.getAttribute('data-label') || '').replace(/\\s+/g, ' ').trim();";
+egl = egl + "\n";
+egl = egl + "        var rkind = (rn.getAttribute('data-kind') || '').replace(/\\s+/g, ' ').trim();";
+egl = egl + "\n";
+egl = egl + "        if (rlabel === selectedLabel) {";
+egl = egl + "\n";
+egl = egl + "          selectedKey = rkey;";
+egl = egl + "\n";
+egl = egl + "          if (!nodeMap[rkey]) nodeMap[rkey] = { key: rkey, label: rlabel, kind: rkind || 'structural' };";
+egl = egl + "\n";
+egl = egl + "          break;";
+egl = egl + "\n";
+egl = egl + "        }";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "      if (!selectedKey) return [];";
+egl = egl + "\n";
+egl = egl + "      for (var j = 0; j < rawEdges.length; j++) {";
+egl = egl + "\n";
+egl = egl + "        var e = rawEdges[j];";
+egl = egl + "\n";
+egl = egl + "        var src = e.getAttribute('data-source') || '';";
+egl = egl + "\n";
+egl = egl + "        var tgt = e.getAttribute('data-target') || '';";
+egl = egl + "\n";
+egl = egl + "        if (src && tgt) {";
+egl = egl + "\n";
+egl = egl + "          var srcDef = nodeMap[src];";
+egl = egl + "\n";
+egl = egl + "          var tgtDef = nodeMap[tgt];";
+egl = egl + "\n";
+egl = egl + "          var srcOk = !!srcDef;";
+egl = egl + "\n";
+egl = egl + "          var tgtOk = !!tgtDef;";
+egl = egl + "\n";
+egl = egl + "          var rootPassForward = (src === selectedKey);";
+egl = egl + "\n";
+egl = egl + "          var rootPassReverse = (tgt === selectedKey);";
+egl = egl + "\n";
+egl = egl + "          if ((srcOk && tgtOk) || (rootPassForward && tgtOk)) {";
+egl = egl + "\n";
+egl = egl + "            if (!adjacency[src]) adjacency[src] = [];";
+egl = egl + "\n";
+egl = egl + "            adjacency[src].push(tgt);";
+egl = egl + "\n";
+egl = egl + "          }";
+egl = egl + "\n";
+egl = egl + "          if ((srcOk && tgtOk) || (rootPassReverse && srcOk)) {";
+egl = egl + "\n";
+egl = egl + "            if (!reverseAdjacency[tgt]) reverseAdjacency[tgt] = [];";
+egl = egl + "\n";
+egl = egl + "            reverseAdjacency[tgt].push(src);";
+egl = egl + "\n";
+egl = egl + "          }";
+egl = egl + "\n";
+egl = egl + "        }";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "      var result = [];";
+egl = egl + "\n";
+egl = egl + "      var visited = {};";
+egl = egl + "\n";
+egl = egl + "      var queue = [{ key: selectedKey, parent: '', depth: 0 }];";
+egl = egl + "\n";
+egl = egl + "      while (queue.length > 0) {";
+egl = egl + "\n";
+egl = egl + "        var current = queue.shift();";
+egl = egl + "\n";
+egl = egl + "        var currentKey = current.key;";
+egl = egl + "\n";
+egl = egl + "        if (visited[currentKey]) continue;";
+egl = egl + "\n";
+egl = egl + "        visited[currentKey] = true;";
+egl = egl + "\n";
+egl = egl + "        var def = nodeMap[currentKey];";
+egl = egl + "\n";
+egl = egl + "        if (!def) continue;";
+egl = egl + "\n";
+egl = egl + "        var nodeKind = current.depth === 0 ? 'root' : def.kind;";
+egl = egl + "\n";
+egl = egl + "        result.push({ id: currentKey, parent: current.parent, depth: current.depth, label: def.label, kind: nodeKind });";
+egl = egl + "\n";
+egl = egl + "        if (current.depth < maxVisibleDepth) {";
+egl = egl + "\n";
+egl = egl + "          var nexts = (effectiveDirection === 'upstream') ? (reverseAdjacency[currentKey] || []) : (adjacency[currentKey] || []);";
+egl = egl + "\n";
+egl = egl + "          for (var k = 0; k < nexts.length; k++) {";
+egl = egl + "\n";
+egl = egl + "            var nextKey = nexts[k];";
+egl = egl + "\n";
+egl = egl + "            if (!visited[nextKey]) {";
+egl = egl + "\n";
+egl = egl + "              queue.push({ key: nextKey, parent: currentKey, depth: current.depth + 1 });";
+egl = egl + "\n";
+egl = egl + "            }";
+egl = egl + "\n";
+egl = egl + "          }";
+egl = egl + "\n";
+egl = egl + "        }";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "      return result;";
+egl = egl + "\n";
+egl = egl + "    }";
+egl = egl + "\n";
+egl = egl + "    function filterOrphanNodes(nodes) {";
+egl = egl + "\n";
+egl = egl + "      var orphanToggle = document.getElementById('orphanToggle');";
+egl = egl + "\n";
+egl = egl + "      var showOrphans = orphanToggle ? orphanToggle.checked : true;";
+egl = egl + "\n";
+egl = egl + "      if (showOrphans) return nodes;";
+egl = egl + "\n";
+egl = egl + "      var parentMap = {};";
+egl = egl + "\n";
+egl = egl + "      var childMap = {};";
+egl = egl + "\n";
+egl = egl + "      for (var i = 0; i < nodes.length; i++) {";
+egl = egl + "\n";
+egl = egl + "        var n = nodes[i];";
+egl = egl + "\n";
+egl = egl + "        if (n.parent) {";
+egl = egl + "\n";
+egl = egl + "          parentMap[n.id] = true;";
+egl = egl + "\n";
+egl = egl + "          childMap[n.parent] = true;";
+egl = egl + "\n";
+egl = egl + "        }";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "      var filtered = [];";
+egl = egl + "\n";
+egl = egl + "      for (var j = 0; j < nodes.length; j++) {";
+egl = egl + "\n";
+egl = egl + "        var node = nodes[j];";
+egl = egl + "\n";
+egl = egl + "        var isRoot = node.depth === 0;";
+egl = egl + "\n";
+egl = egl + "        var hasParent = !!parentMap[node.id];";
+egl = egl + "\n";
+egl = egl + "        var hasChild = !!childMap[node.id];";
+egl = egl + "\n";
+egl = egl + "        if (isRoot || hasParent || hasChild) {";
+egl = egl + "\n";
+egl = egl + "          filtered.push(node);";
+egl = egl + "\n";
+egl = egl + "        }";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "      return filtered;";
+egl = egl + "\n";
+egl = egl + "    }";
+egl = egl + "\n";
+egl = egl + "    function renderImpactBoard() {";
+egl = egl + "\n";
+egl = egl + "      var depthSel = document.getElementById('depthSelect');";
+egl = egl + "\n";
+egl = egl + "      var maxVisibleDepth = depthSel ? parseInt(depthSel.value, 10) : " + maxDepth.asString() + ";";
+egl = egl + "\n";
+//egl = egl + "      var nodes = readImpactNodes(maxVisibleDepth);";
+egl = egl + "      var nodes = readImpactNodes(maxVisibleDepth);";
+egl = egl + "\n";
+egl = egl + "      if (!nodes || nodes.length === 0) {";
+egl = egl + "\n";
+egl = egl + "        document.getElementById('impactBoard').innerHTML = '';";
+egl = egl + "\n";
+egl = egl + "        document.getElementById('impactEdges').innerHTML = '';";
+egl = egl + "\n";
+egl = egl + "        return;";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "      nodes = filterOrphanNodes(nodes);";
+egl = egl + "\n";
+egl = egl + "      var board = document.getElementById('impactBoard');";
+egl = egl + "\n";
+egl = egl + "      var byDepth = {};";
+egl = egl + "\n";
+egl = egl + "      var maxDepthFound = 0;";
+egl = egl + "\n";
+egl = egl + "      for (var i = 0; i < nodes.length; i++) {";
+egl = egl + "\n";
+egl = egl + "        var d = nodes[i].depth;";
+egl = egl + "\n";
+egl = egl + "        if (!byDepth[d]) byDepth[d] = [];";
+egl = egl + "\n";
+egl = egl + "        byDepth[d].push(nodes[i]);";
+egl = egl + "\n";
+egl = egl + "        if (d > maxDepthFound) maxDepthFound = d;";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "      var html = '';";
+egl = egl + "\n";
+egl = egl + "      for (var d = 0; d <= maxDepthFound; d++) {";
+egl = egl + "\n";
+egl = egl + "        html += '<div class=\"impact-depth-col\" data-depth-col=\"' + d + '\">';";
+egl = egl + "\n";
+//egl = egl + "        html += '<div class=\"impact-depth-title\">' + (d === 0 ? 'Start' : 'Depth ' + d) + '</div>'; ";
+egl = egl + "        html += '<div class=\"impact-depth-title\">Depth ' + d + '</div>'; ";
+
+egl = egl + "\n";
+egl = egl + "        var levelNodes = byDepth[d] || [];";
+egl = egl + "\n";
+egl = egl + "        for (var j = 0; j < levelNodes.length; j++) {";
+egl = egl + "\n";
+egl = egl + "          var node = levelNodes[j];";
+egl = egl + "\n";
+egl = egl + "          html += '<div class=\"impact-card ' + node.kind + '\" data-node-id=\"' + node.id + '\" data-parent-id=\"' + node.parent + '\">';";
+egl = egl + "\n";
+egl = egl + "          html += '<div class=\"impact-card-label\">' + node.label + '</div>'; ";
+egl = egl + "\n";
+egl = egl + "          html += '<div class=\"impact-card-kind\">' + node.kind + '</div>'; ";
+egl = egl + "\n";
+egl = egl + "          html += '</div>'; ";
+egl = egl + "\n";
+egl = egl + "        }";
+egl = egl + "\n";
+egl = egl + "        html += '</div>'; ";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "      board.innerHTML = html;";
+egl = egl + "\n";
+egl = egl + "      drawImpactEdges();";
+egl = egl + "\n";
+egl = egl + "    }";
+egl = egl + "\n";
+egl = egl + "    function drawImpactEdges() {";
+egl = egl + "\n";
+egl = egl + "      var wrapper = document.getElementById('impactBoardWrapper');";
+egl = egl + "\n";
+egl = egl + "      var board = document.getElementById('impactBoard');";
+egl = egl + "\n";
+egl = egl + "      var svg = document.getElementById('impactEdges');";
+egl = egl + "\n";
+egl = egl + "      var cards = document.querySelectorAll('#impactBoard .impact-card');";
+egl = egl + "\n";
+egl = egl + "      var wrapperRect = wrapper.getBoundingClientRect();";
+egl = egl + "\n";
+egl = egl + "      var boardRect = board.getBoundingClientRect();";
+egl = egl + "\n";
+egl = egl + "      svg.setAttribute('width', Math.max(board.scrollWidth, boardRect.width));";
+egl = egl + "\n";
+egl = egl + "      svg.setAttribute('height', Math.max(board.scrollHeight, boardRect.height));";
+egl = egl + "\n";
+egl = egl + "      svg.innerHTML = '';";
+egl = egl + "\n";
+egl = egl + "      for (var i = 0; i < cards.length; i++) {";
+egl = egl + "\n";
+egl = egl + "        var child = cards[i];";
+egl = egl + "\n";
+egl = egl + "        var parentId = child.getAttribute('data-parent-id');";
+egl = egl + "\n";
+egl = egl + "        if (!parentId) continue;";
+egl = egl + "\n";
+egl = egl + "        var parent = document.querySelector('#impactBoard .impact-card[data-node-id=\"' + parentId + '\"]');";
+egl = egl + "\n";
+egl = egl + "        if (!parent) continue;";
+egl = egl + "\n";
+egl = egl + "        var pr = parent.getBoundingClientRect();";
+egl = egl + "\n";
+egl = egl + "        var cr = child.getBoundingClientRect();";
+egl = egl + "\n";
+egl = egl + "        var x1 = pr.right - wrapperRect.left;";
+egl = egl + "\n";
+egl = egl + "        var y1 = pr.top + pr.height / 2 - wrapperRect.top;";
+egl = egl + "\n";
+egl = egl + "        var x2 = cr.left - wrapperRect.left;";
+egl = egl + "\n";
+egl = egl + "        var y2 = cr.top + cr.height / 2 - wrapperRect.top;";
+egl = egl + "\n";
+egl = egl + "        var c1x = x1 + 24;";
+egl = egl + "\n";
+egl = egl + "        var c2x = x2 - 24;";
+egl = egl + "\n";
+egl = egl + "        var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');";
+egl = egl + "\n";
+egl = egl + "        path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' C ' + c1x + ' ' + y1 + ', ' + c2x + ' ' + y2 + ', ' + x2 + ' ' + y2);";
+egl = egl + "\n";
+egl = egl + "        path.setAttribute('fill', 'none');";
+egl = egl + "\n";
+egl = egl + "        path.setAttribute('stroke', '#8a8f98');";
+egl = egl + "\n";
+egl = egl + "        path.setAttribute('stroke-width', '3');";
+egl = egl + "\n";
+egl = egl + "        path.setAttribute('stroke-linecap', 'round');";
+egl = egl + "\n";
+egl = egl + "        svg.appendChild(path);";
+egl = egl + "\n";
+egl = egl + "      }";
+egl = egl + "\n";
+egl = egl + "    }";
+egl = egl + "\n";
+egl = egl + "    var depthSel = document.getElementById('depthSelect');";
+egl = egl + "\n";
+egl = egl + "    var startSel = document.getElementById('startElement');";
+egl = egl + "\n";
+egl = egl + "    var concernSel = document.getElementById('concernSelect');";
+egl = egl + "\n";
+egl = egl + "    var orphanToggle = document.getElementById('orphanToggle');";
+egl = egl + "\n";
+egl = egl + "    if (depthSel) depthSel.addEventListener('change', renderImpactBoard);";
+egl = egl + "\n";
+egl = egl + "    if (startSel) startSel.addEventListener('change', renderImpactBoard);";
+egl = egl + "\n";
+egl = egl + "    if (concernSel) concernSel.addEventListener('change', renderImpactBoard);";
+egl = egl + "\n";
+egl = egl + "    if (orphanToggle) orphanToggle.addEventListener('change', renderImpactBoard);";
+egl = egl + "\n";
+//egl = egl + "    window.addEventListener('load', renderImpactBoard);";
+egl = egl + "\n";
+egl = egl + "    window.addEventListener('resize', drawImpactEdges);";
+egl = egl + "\n";
+egl = egl + "    renderImpactBoard();";
+egl = egl + "\n";
+egl = egl + "  </script>";
+egl = egl + "\n";
+
+  egl = egl + "</div>";
+  egl = egl + "\n";
+  egl = egl + "</body>";
+  egl = egl + "\n";
+  egl = egl + "</html>";
+
+  return egl;
+}
+
+operation generateImpactEgl() {
+  var spec = readSpec();
+
+  var egl = generateImpactEglFromSpec(spec);
+
+  writeTextFile(
+    "file:/Users/iqr01/eclipse-workspace-test/org.eclipse.epsilon.examples.picto.sysmlv2/HOT_project/generated/UnifiedAnalysisView.egl",
+    egl
+  );
+}

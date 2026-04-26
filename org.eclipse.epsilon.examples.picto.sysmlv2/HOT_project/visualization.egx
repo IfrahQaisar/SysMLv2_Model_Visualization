@@ -1,0 +1,115 @@
+import "../util.eol";
+//import "view_generator.eol";
+//import "old_hot.eol";
+//import "on_demand.eol";
+//import "impact_on_demand.eol";
+//import "consistency_hot.eol";
+//import "architecture_hotspot.eol";
+//import "combined_analysis_hot.eol";
+
+import "impact_family.eol";
+/*pre {
+  ("[EGX] visualization.egx is running").println();
+  generateUnifiedAnalysisView();
+  ("[EGX] after egl generation").println();
+  
+  
+ // generateStructuralView();
+//  generateImpactView();
+ // ("[EGX] after generateImpactView").println();
+  // generateConsistencyView();
+  //("[EGX] after generateConsistencyView").println();
+    //generateHotspotView();
+  //("[EGX] after generateHotspotView").println();
+}
+
+*/
+
+pre {
+  ("[EGX] visualization.egx is running").println();
+
+  generateImpactEgl();   // no parameter
+
+  ("[EGX] after egl generation").println();
+}
+
+
+rule ImpactAnalysisView
+  transform r : Package {
+
+  template : "file:/Users/iqr01/eclipse-workspace-test/org.eclipse.epsilon.examples.picto.sysmlv2/HOT_project/generated/UnifiedAnalysisView.egl"
+
+  parameters : Map{
+    "path" = Sequence{"Impact Analysis"},
+    "format" = "html"
+  }
+}
+
+
+
+/*rule UnifiedAnalysisView
+  transform r : Package {
+
+ template : "file:/Users/iqr01/eclipse-workspace-test/org.eclipse.epsilon.examples.picto.sysmlv2/HOT_project/generated/UnifiedAnalysisView.egl"
+
+  parameters : Map{
+   "path" = Sequence{"Analysis", "Unified Analysis"},
+    "format" = "html"
+  }
+}
+
+
+
+
+
+
+/*rule ImpactView
+  transform r : Package {
+
+  template : "file:/Users/iqr01/eclipse-workspace-test/org.eclipse.epsilon.examples.picto.sysmlv2/HOT_project/generated/ImpactView.egl"
+
+  parameters : Map{
+    "path" = Sequence{"Impact", "Analysis"},
+    "format" = "html"
+  }
+}
+
+
+rule Package2StructuralView
+  transform r : Package {
+
+  template : "file:/Users/iqr01/eclipse-workspace-test/org.eclipse.epsilon.examples.picto.sysmlv2/HOT_project/generated/StructuralView.egl"
+
+  parameters : Map{
+    "path" = Sequence{"Structure", r.getAnyName().isDefined() ? r.getAnyName() : r.name},
+    "format" = "html"
+  }
+}
+
+
+rule ConsistencyView
+  transform r : Package {
+
+  template : "file:/Users/iqr01/eclipse-workspace-test/org.eclipse.epsilon.examples.picto.sysmlv2/HOT_project/generated/ConsistencyView.egl"
+
+  parameters : Map{
+    "path" = Sequence{"Consistency", "MultiView"},
+    "format" = "html"
+  }
+}
+
+
+rule Package2HotspotView
+  transform p : Package {
+
+  template : "file:/Users/iqr01/eclipse-workspace-test/org.eclipse.epsilon.examples.picto.sysmlv2/HOT_project/generated/HotspotView.egl"
+
+  parameters : Map{
+    "path" = Sequence{"Hotspots", "Architecture Hotspots"},
+    "format" = "html"
+  }
+
+  target : "hotspots.html"
+}
+
+*/
