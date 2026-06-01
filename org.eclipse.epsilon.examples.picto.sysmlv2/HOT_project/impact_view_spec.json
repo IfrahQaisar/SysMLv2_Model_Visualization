@@ -1,10 +1,32 @@
+
+//View Specification for Scenario 01
+
 [
-  {
-    "title": "Model Analysis View",
-    "entryPointType": ["component","requirement","action"],
-    "concerns": ["structural","behavior","interface","requirement"],
-    "traversalStrategy": ["propagation"], //dependency
-    "maxDepth": 5, 
-	
-  }
+ { 
+   "title": "Model Exploration View",
+   "entryPointType": ["component"],
+   "concerns": ["structural", "behavior", "interface"],
+   "traversalStrategy": ["propagation"],
+   "maxDepth": 3 
+ }
 ]
+
+
+//View Specification for Scenario 02
+/*
+[
+ { 
+
+   "title": "Model Exploration View",
+   "entryPointType": ["component", "requirement"],
+   "concerns": ["structural", "behavior", "requirement", "interface"],
+   "traversalStrategy": ["dependency"],
+    "maxDepth": 5 
+
+}
+]
+
+*/
+
+
+
